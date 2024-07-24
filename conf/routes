@@ -1,0 +1,19 @@
+GET / controllers.HomeController.index(redirect: Option[String])
+
+GET /media/*file controllers.api.v2.MediaController.serveFile(file)
+
+GET /.well-known/nodeinfo controllers.NodeInfoController.wellKnown
+GET /nodeinfo/2.0 controllers.NodeInfoController.nodeInfo
+
+POST /oauth/token controllers.oauth.OAuth2Controller.token
+GET /oauth/authorize controllers.oauth.OAuth2Controller.authorize(response_type, client_id, redirect_uri, scope: Option[String], force_login: Option[Boolean], lang: Option[String])
+
+POST /api/v1/apps controllers.api.v1.AppsController.apps
+GET /api/v1/instance controllers.api.v1.InstanceController.instance
+POST /api/v1/accounts controllers.api.v1.AccountsController.register(redirect: Option[String])
+GET /api/v1/accounts/verify_credentials controllers.api.v1.AccountsController.verify
+POST /api/v1/statuses controllers.api.v1.StatusesController.post
+DELETE /api/v1/statuses/:id controllers.api.v1.StatusesController.delete(id: Long)
+GET /api/v1/timelines/home controllers.api.v1.TimelineController.home(max_id: Option[String], since_id: Option[String], min_id: Option[String], limit: Option[Int])
+
+POST /api/v2/media controllers.api.v2.MediaController.post
