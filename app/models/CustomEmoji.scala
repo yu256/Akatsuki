@@ -3,9 +3,6 @@ package models
 import play.api.libs.json.JsonNaming.SnakeCase
 import play.api.libs.json.{Json, JsonConfiguration, OFormat}
 
-implicit val config: JsonConfiguration.Aux[Json.MacroOptions] =
-  JsonConfiguration(SnakeCase)
-
 case class CustomEmoji(
     shortcode: String,
     url: String,
@@ -15,6 +12,8 @@ case class CustomEmoji(
 )
 
 object CustomEmoji {
-  implicit val customEmojiFormat: OFormat[CustomEmoji] =
+  given JsonConfiguration.Aux[Json.MacroOptions] =
+    JsonConfiguration(SnakeCase)
+  given OFormat[CustomEmoji] =
     Json.format[CustomEmoji]
 }

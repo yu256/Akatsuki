@@ -31,8 +31,8 @@ case class Account(
 )
 
 object Account {
-  implicit val accountFormat: OFormat[Account] = Json.format[Account]
-  implicit val config: JsonConfiguration.Aux[Json.MacroOptions] =
+  given OFormat[Account] = Json.format[Account]
+  given JsonConfiguration.Aux[Json.MacroOptions] =
     JsonConfiguration(SnakeCase)
 
   def fromRow(row: Tables.AccountsRow): Account =
@@ -55,8 +55,8 @@ object Account {
 case class Field(name: String, value: String, verifiedAt: Option[String] = None)
 
 object Field {
-  implicit val FieldFormat: OFormat[Field] = Json.format[Field]
-  implicit val config: JsonConfiguration.Aux[Json.MacroOptions] =
+  given OFormat[Field] = Json.format[Field]
+  given JsonConfiguration.Aux[Json.MacroOptions] =
     JsonConfiguration(SnakeCase)
 
 }

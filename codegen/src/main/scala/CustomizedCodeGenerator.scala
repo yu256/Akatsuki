@@ -8,6 +8,7 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 object CustomizedCodeGenerator {
 
   import Config.*
+  import scala.concurrent.ExecutionContext.Implicits.global
 
   private val projectDir: String = Paths
     .get("")
@@ -16,9 +17,6 @@ object CustomizedCodeGenerator {
     .split("""\\""")
     .dropRight(1)
     .mkString("""/""")
-
-  implicit val ec: ExecutionContext =
-    scala.concurrent.ExecutionContext.Implicits.global
 
   def main(args: Array[String]): Unit = {
     Await.result(

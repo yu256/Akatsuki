@@ -48,14 +48,14 @@ case class MediaAttachment(
 )
 
 object MediaAttachment {
-  implicit val focusFormat: Format[Focus] = Json.format[Focus]
-  implicit val mediaMetaDetailsFormat: Format[MediaMetaDetails] =
+  given Format[Focus] = Json.format[Focus]
+  given Format[MediaMetaDetails] =
     Json.format[MediaMetaDetails]
-  implicit val mediaMetaFormat: Format[MediaMeta] = Json.format[MediaMeta]
-  implicit val mediaAttachmentFormat: Format[MediaAttachment] =
+  given Format[MediaMeta] = Json.format[MediaMeta]
+  given Format[MediaAttachment] =
     Json.format[MediaAttachment]
 
-  implicit val config: JsonConfiguration.Aux[Json.MacroOptions] =
+  given JsonConfiguration.Aux[Json.MacroOptions] =
     JsonConfiguration(SnakeCase)
 
   def fromRow(row: Tables.MediaRow): MediaAttachment =

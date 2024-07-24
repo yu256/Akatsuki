@@ -30,8 +30,8 @@ case class Status(
 )
 
 object Status {
-  implicit val StatusFormat: OFormat[Status] = Json.format[Status]
-  implicit val config: JsonConfiguration.Aux[Json.MacroOptions] =
+  given OFormat[Status] = Json.format[Status]
+  given JsonConfiguration.Aux[Json.MacroOptions] =
     JsonConfiguration(SnakeCase)
 
   def fromRow(
@@ -66,8 +66,8 @@ case class Mention(
 )
 
 object Mention {
-  implicit val MentionFormat: OFormat[Mention] = Json.format[Mention]
-  implicit val config: JsonConfiguration.Aux[Json.MacroOptions] =
+  given OFormat[Mention] = Json.format[Mention]
+  given JsonConfiguration.Aux[Json.MacroOptions] =
     JsonConfiguration(SnakeCase)
 }
 
@@ -77,7 +77,7 @@ case class Tag(
 )
 
 object Tag {
-  implicit val TagFormat: OFormat[Tag] = Json.format[Tag]
-  implicit val config: JsonConfiguration.Aux[Json.MacroOptions] =
+  given OFormat[Tag] = Json.format[Tag]
+  given JsonConfiguration.Aux[Json.MacroOptions] =
     JsonConfiguration(SnakeCase)
 }
