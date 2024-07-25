@@ -13,7 +13,8 @@ CREATE TABLE accounts (
     url TEXT,
     fields JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    UNIQUE (username, domain)
 );
 
 CREATE INDEX idx_accounts_username ON accounts (username);
