@@ -1,16 +1,13 @@
 package repositories
 
+import extensions.DBIOA
 import play.api.db.slick.DatabaseConfigProvider
 import slick.jdbc.PostgresProfile
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
-trait AccountRepository {
-  def findByUsername(
-      username: String,
-      domain: Option[String]
-  ): Future[Option[Tables.AccountsRow]]
+trait AccountRepository extends Repository {
   def create(
       username: String,
       domain: Option[String] = None,
@@ -20,8 +17,12 @@ trait AccountRepository {
       note: String = "",
       url: Option[String] = None,
       fields: Option[String] = None
-  ): Future[Long]
-  def findByUserId(userId: Long): Future[Option[Tables.AccountsRow]]
+  ): DBIOA[Long]
+  def findByUsername(
+      username: String,
+      domain: Option[String]
+  ): DBIOA[Option[Tables.AccountsRow]]
+  def findByUserId(userId: Long): DBIOA[Option[Tables.AccountsRow]]
 }
 
 @Singleton
@@ -35,20 +36,7 @@ class AccountRepositoryImpl @Inject() (
   import MyPostgresDriver.api.*
   import dbConfig.*
 
-  def findByUsername(
-      username: String,
-      domain: Option[String]
-  ): Future[Option[Tables.AccountsRow]] = db.run {
-    Tables.Accounts
-      .filter(account =>
-        account.username === username && (domain match {
-          case Some(d) => account.domain === d
-          case None    => account.domain.isEmpty.?
-        })
-      )
-      .result
-      .headOption
-  }
+  def run[T] = db.run[T]
 
   // returns id
   def create(
@@ -60,7 +48,7 @@ class AccountRepositoryImpl @Inject() (
       note: String = "",
       url: Option[String] = None,
       fields: Option[String] = None
-  ): Future[Long] = db.run {
+  ): DBIOA[Long] =
     sql"""
       INSERT INTO accounts (
         username, domain, display_name, locked, bot, note, url, fields
@@ -69,9 +57,22 @@ class AccountRepositoryImpl @Inject() (
         $note, $url, (to_jsonb($fields) #>> '{}')::jsonb
       ) RETURNING id
     """.as[Long].head
-  }
 
-  def findByUserId(userId: Long): Future[Option[Tables.AccountsRow]] = db.run {
+  def findByUsername(
+      username: String,
+      domain: Option[String]
+  ): DBIOA[Option[Tables.AccountsRow]] =
+    Tables.Accounts
+      .filter(account =>
+        account.username === username && (domain match {
+          case Some(d) => account.domain === d
+          case None    => account.domain.isEmpty.?
+        })
+      )
+      .result
+      .headOption
+
+  def findByUserId(userId: Long): DBIOA[Option[Tables.AccountsRow]] =
     Tables.Users
       .filter(_.id === userId)
       .join(Tables.Accounts)
@@ -79,5 +80,5 @@ class AccountRepositoryImpl @Inject() (
       .map(_._2)
       .result
       .headOption
-  }
+
 }

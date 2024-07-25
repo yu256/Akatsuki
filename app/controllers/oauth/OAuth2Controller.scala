@@ -46,16 +46,18 @@ class OAuth2Controller @Inject() (
         "Invalid client_id"
       )
       app <- EitherT.fromOptionF(
-        authRepo.findAppByApplicationId(clientId),
+        authRepo.run(authRepo.findAppByApplicationId(clientId)),
         "Invalid client_id"
       )
       result <- EitherT.liftF {
         if app.ownerId.isDefined then
-          authRepo.genAppCode(clientId).map { code =>
-            redirect_uri match {
-              case "urn:ietf:wg:oauth:2.0:oob" =>
-                Ok(views.html.auth_code(code))
-              case uri => Redirect(s"$uri?code=$code")
+          authRepo.run {
+            authRepo.genAppCode(clientId).map { code =>
+              redirect_uri match {
+                case "urn:ietf:wg:oauth:2.0:oob" =>
+                  Ok(views.html.auth_code(code))
+                case uri => Redirect(s"$uri?code=$code")
+              }
             }
           }
         else

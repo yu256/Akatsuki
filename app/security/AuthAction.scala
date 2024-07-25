@@ -23,13 +23,13 @@ class AuthAction @Inject() (
     ): Future[Result] =
       request.headers
         .get("Authorization")
-        .flatTraverse(authRepo.findUserIdByBearer)
+        .flatTraverse(authRepo.findUserIdByBearer andThen authRepo.run)
         .flatMap {
           case Some(userId) => block(UserRequest(userId, request))
           case None         => Unauthorized.pure
         }
   }
-  
+
   def apply[A](
       bodyParser: BodyParser[A] = parse.anyContent
   ): ActionBuilder[UserRequest, A] =

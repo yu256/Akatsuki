@@ -34,24 +34,26 @@ class AppsController @Inject() (
     )
   }) { request =>
     val AppsRequest(clientName, redirectUris, scopes, website) = request.body
-    authRepo
-      .createApp(
-        clientName,
-        redirectUris,
-        scopes,
-        website
-      )
-      .map { app =>
-        Ok(
-          Json.obj(
-            "id" -> app.id.toString,
-            "name" -> app.name,
-            "website" -> app.website,
-            "redirect_uri" -> app.redirectUri,
-            "client_id" -> app.id.toString,
-            "client_secret" -> app.secret
-          )
+    authRepo.run {
+      authRepo
+        .createApp(
+          clientName,
+          redirectUris,
+          scopes,
+          website
         )
-      }
+        .map { app =>
+          Ok(
+            Json.obj(
+              "id" -> app.id.toString,
+              "name" -> app.name,
+              "website" -> app.website,
+              "redirect_uri" -> app.redirectUri,
+              "client_id" -> app.id.toString,
+              "client_secret" -> app.secret
+            )
+          )
+        }
+    }
   }
 }

@@ -1,6 +1,6 @@
 package controllers.api.v1
 
-import cats.data.{EitherT, OptionT}
+import cats.data.EitherT
 import cats.syntax.all.*
 import models.Account
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
@@ -25,7 +25,6 @@ class AccountsController @Inject() (
     extends AbstractController(cc) {
   import AccountsController.*
 
-  // todo: run db transactional
   def register(redirect: Option[String]): Action[RegisterRequest] =
     Action.async(parse.form(userForm)) { request =>
       extension (opt: Option[?]) {
@@ -34,48 +33,39 @@ class AccountsController @Inject() (
       }
 
       val bcrypt = BCryptPasswordEncoder()
-      val accessTokenEitherT = for {
-        _ <- EitherT.fromEither[Future](validateRegisterRequest(request.body))
-        _ <- EitherT(
-          (
-            accountRepo
-              .findByUsername(request.body.username, None)
-              .map(_.ensureNone("username is duplicated.")),
-            request.body.email.traverse {
-              userRepo
-                .findByEmail(_)
-                .map(_.ensureNone("email is duplicated."))
-            }
-          ).mapN(_ *> _.getOrElse(Right(())))
-        )
-        accountId <- EitherT.liftF(
+      val dbAction = for {
+        accountId <-
           accountRepo.create(
             username = request.body.username,
             displayName = request.body.username
           )
-        )
-        userId <- EitherT.liftF(
+        userId <-
           userRepo.create(
             email = request.body.email,
             encryptedPassword = bcrypt.encode(request.body.password),
             accountId = accountId
           )
-        )
-        tokenRow <- EitherT.liftF(
+        tokenRow <-
           authRepo.createToken(
             userId = userId,
             scopes = "read write follow push".some
           )
-        )
+      } yield userId -> tokenRow.token
+
+      import repositories.MyPostgresDriver.MyAPI.jdbcActionExtensionMethods
+
+      val token: EitherT[Future, String, String] = for {
+        _ <- EitherT.fromEither[Future](validateRegisterRequest(request.body))
+        (userId, token) <- EitherT.liftF(authRepo.run(dbAction.transactionally))
         _ <- EitherT.liftF {
           request.session
             .get("clientId")
             .flatMap(_.toLongOption)
-            .traverse_(authRepo.saveOwnerId(_, userId))
+            .traverse_(id => authRepo.run(authRepo.saveOwnerId(id, userId)))
         }
-      } yield tokenRow.token
+      } yield token
 
-      accessTokenEitherT.fold(
+      token.fold(
         error => BadRequest(Json.obj("error" -> error)),
         accessToken =>
           redirect match {
@@ -117,10 +107,11 @@ class AccountsController @Inject() (
 
   val verify: Action[AnyContent] =
     authAction().async { request =>
-      OptionT {
-        accountRepo
-          .findByUserId(request.userId)
-      }
+      accountRepo
+        .runM(
+          accountRepo
+            .findByUserId(request.userId)
+        )
         .map(Account.fromRow)
         .fold(InternalServerError(Json.obj("error" -> "Account not found"))) {
           account => Ok(Json.toJson(account))
