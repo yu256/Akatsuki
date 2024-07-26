@@ -6,7 +6,7 @@ import slick.jdbc.PostgresProfile
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.ExecutionContext
 
-trait FollowRepository {}
+trait FollowRepository extends Repository {}
 
 @Singleton
 class FollowRepositoryImpl @Inject (dbConfigProvider: DatabaseConfigProvider)(
@@ -14,4 +14,5 @@ class FollowRepositoryImpl @Inject (dbConfigProvider: DatabaseConfigProvider)(
 ) extends FollowRepository {
   val dbConfig = dbConfigProvider.get[PostgresProfile]
 
+  def run[T] = dbConfig.db.run[T]
 }

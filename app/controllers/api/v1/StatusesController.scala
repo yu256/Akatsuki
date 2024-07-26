@@ -77,24 +77,26 @@ class StatusesController @Inject() (
       )
     }).async { case UserRequest(userId, request) =>
       val req = request.body
-      statusRepo
-        .createStatus(
-          accountId = userId,
-          text = req.status,
-          sensitive = req.sensitive,
-          spoilerText = req.spoilerText,
-          visibility = req.visibility.getOrElse(0),
-          language = req.language,
-          mediaIds =
-            req.mediaIds.map(_.flatMap(_.toLongOption)).getOrElse(Seq.empty)
-        )
-        .map(status => Ok(Json.toJson(status)))
+      statusRepo.run(
+        statusRepo
+          .createStatus(
+            accountId = userId,
+            text = req.status,
+            sensitive = req.sensitive,
+            spoilerText = req.spoilerText,
+            visibility = req.visibility.getOrElse(0),
+            language = req.language,
+            mediaIds =
+              req.mediaIds.map(_.flatMap(_.toLongOption)).getOrElse(Seq.empty)
+          )
+          .map(status => Ok(Json.toJson(status)))
+      )
     }
 
   def delete(id: Long): Action[AnyContent] =
     authAction().async { case UserRequest(userId, _) =>
       statusRepo
-        .deleteStatus(id, userId)
+        .runM(statusRepo.deleteStatus(id, userId))
         .fold(NotFound(Json.obj("error" -> "Record not found"))) { status =>
           Ok(Json.toJson(status))
         }

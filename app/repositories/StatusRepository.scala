@@ -2,6 +2,7 @@ package repositories
 
 import cats.data.OptionT
 import cats.syntax.all.*
+import extensions.DBIOA
 import models.Status
 import play.api.db.slick.DatabaseConfigProvider
 import slick.jdbc.{GetResult, PostgresProfile}
@@ -9,7 +10,7 @@ import slick.jdbc.{GetResult, PostgresProfile}
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.{ExecutionContext, Future}
 
-trait StatusRepository {
+trait StatusRepository extends Repository {
   enum TimelineType:
     case User(id: Long, showDM: Boolean = false)
     case Home(id: Long)
@@ -24,14 +25,14 @@ trait StatusRepository {
       visibility: Int | String = 0,
       language: Option[String] = None,
       mediaIds: Seq[Long] = Seq.empty
-  ): Future[Status]
-  def deleteStatus(statusId: Long, userId: Long): OptionT[Future, Status]
+  ): DBIOA[Status]
+  def deleteStatus(statusId: Long, userId: Long): DBIOA[Option[Status]]
   def timeline(
       tlType: TimelineType,
       max: Int,
       sinceId: Option[Long] = None,
       maxId: Option[Long] = None
-  ): Future[Seq[Status]]
+  ): DBIOA[Seq[Status]]
 }
 
 @Singleton
@@ -43,6 +44,10 @@ class StatusRepositoryImpl @Inject() (
 
   import MyPostgresDriver.api.*
   import dbConfig.*
+
+  private val functional = extensions.Functional()
+
+  def run[T] = db.run[T]
 
   given mediaSeqGR(using
       mediaGR: GetResult[Tables.MediaRow]
@@ -65,7 +70,7 @@ class StatusRepositoryImpl @Inject() (
       visibility: Int | String = 0,
       language: Option[String] = None,
       mediaIds: Seq[Long] = Seq.empty
-  ): Future[Status] = db.run {
+  ): DBIOA[Status] = {
     val visibilityValue = visibility match {
       case 0 | "public"   => 0
       case 1 | "unlisted" => 1
@@ -98,10 +103,8 @@ class StatusRepositoryImpl @Inject() (
       .map(Status.fromRow)
   }
 
-  def deleteStatus(statusId: Long, userId: Long): OptionT[Future, Status] =
-    OptionT {
-      db.run {
-        sql"""
+  def deleteStatus(statusId: Long, userId: Long): DBIOA[Option[Status]] =
+    sql"""
              WITH deleted AS (
                UPDATE statuses
                SET deleted_at = clock_timestamp()
@@ -117,17 +120,16 @@ class StatusRepositoryImpl @Inject() (
                WHERE media.id = ANY(deleted.media_attachment_ids)
              ) media_files ON true;
            """
-          .as[(Tables.StatusesRow, Tables.AccountsRow, Seq[Tables.MediaRow])]
-          .headOption
-      }
-    }.map(Status.fromRow)
+      .as[(Tables.StatusesRow, Tables.AccountsRow, Seq[Tables.MediaRow])]
+      .headOption
+      .map(_.map(Status.fromRow))
 
   def timeline(
       tlType: TimelineType,
       max: Int,
       sinceId: Option[Long] = None,
       maxId: Option[Long] = None
-  ): Future[Seq[Status]] =
+  ): DBIOA[Seq[Status]] =
     import TimelineType.*
     val baseQuery = Tables.Statuses.filter(_.deletedAt.isEmpty)
     val partialQuery = tlType match {
@@ -156,21 +158,22 @@ class StatusRepositoryImpl @Inject() (
       case _ => partialQuery
     }
 
-    db.run {
-      (for {
-        status <- paginatedQuery
-          .take(max)
-          .sortBy(_.createdAt.desc)
-        account <- Tables.Accounts if account.id === status.accountId
-      } yield (status, account)).result
-    }.flatMap(_.traverse { (status, account) =>
-      db.run {
-        Tables.Media
-          .filter(_.id.inSet(status.mediaAttachmentIds))
-          .result
-          .map {
-            Status.fromRow(status, account, _)
-          }
-      }
-    })
+    import functional.*
+
+    (for {
+      status <- paginatedQuery
+        .take(max)
+        .sortBy(_.createdAt.desc)
+      account <- Tables.Accounts if account.id === status.accountId
+    } yield (status, account)).result
+      .flatMap(seq =>
+        DBIO.sequence(seq.map { (status, account) =>
+          Tables.Media
+            .filter(_.id.inSet(status.mediaAttachmentIds))
+            .result
+            .map {
+              Status.fromRow(status, account, _)
+            }
+        })
+      )
 }

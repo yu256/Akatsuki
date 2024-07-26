@@ -21,15 +21,17 @@ class TimelineController @Inject() (
       limit: Option[Int]
   ): Action[AnyContent] =
     authAction().async { request =>
-      statusRepo
-        .timeline(
-          statusRepo.TimelineType.Home(request.userId),
-          limit.getOrElse(20),
-          since_id.flatMap(_.toLongOption),
-          max_id.flatMap(_.toLongOption)
-        )
-        .map { statuses =>
-          Ok(Json.toJson(statuses))
-        }
+      statusRepo.run {
+        statusRepo
+          .timeline(
+            statusRepo.TimelineType.Home(request.userId),
+            limit.getOrElse(20),
+            since_id.flatMap(_.toLongOption),
+            max_id.flatMap(_.toLongOption)
+          )
+          .map { statuses =>
+            Ok(Json.toJson(statuses))
+          }
+      }
     }
 }
