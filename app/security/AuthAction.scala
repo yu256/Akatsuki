@@ -23,10 +23,12 @@ class AuthAction @Inject() (
     ): Future[Result] =
       request.headers
         .get("Authorization")
-        .flatTraverse(authRepo.findUserIdByBearer andThen authRepo.run)
+        .withFilter(_.startsWith("Bearer "))
+        .map(_.drop(7))
+        .flatTraverse(authRepo.findToken andThen authRepo.run)
         .flatMap {
-          case Some(userId) => block(UserRequest(userId, request))
-          case None         => Unauthorized.pure
+          case Some(token) => block(UserRequest(token.resourceOwnerId, request))
+          case None        => Unauthorized.pure
         }
   }
 

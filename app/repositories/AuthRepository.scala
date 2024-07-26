@@ -39,10 +39,6 @@ trait AuthRepository extends Repository {
       code: String
   ): DBIOA[Option[(Tables.ApplicationsRow, Tables.UsersRow)]]
 
-  def findUserIdByBearer(
-      bearer: String
-  ): DBIOA[Option[Long]]
-
   def findToken(token: String): DBIOA[Option[Tables.AccessTokensRow]]
   def findToken(
       applicationId: Long,
@@ -130,13 +126,6 @@ class AuthRepositoryImpl @Inject (dbConfigProvider: DatabaseConfigProvider)(
       .filter(_.code === code)
       .join(Tables.Users)
       .on(_.ownerId === _.id)
-      .result
-      .headOption
-
-  def findUserIdByBearer(bearer: String): DBIOA[Option[Long]] =
-    Tables.AccessTokens
-      .filter(_.token === bearer.substring(7))
-      .map(_.resourceOwnerId)
       .result
       .headOption
 
