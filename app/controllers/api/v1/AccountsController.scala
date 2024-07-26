@@ -27,11 +27,6 @@ class AccountsController @Inject() (
 
   def register(redirect: Option[String]): Action[RegisterRequest] =
     Action.async(parse.form(userForm)) { request =>
-      extension (opt: Option[?]) {
-        private def ensureNone(msg: String): Either[String, Unit] =
-          opt.fold(Right(()))(_ => Left(msg))
-      }
-
       val bcrypt = BCryptPasswordEncoder()
       val dbAction = for {
         accountId <-
