@@ -1,6 +1,14 @@
 package extensions
 
-import cats.{Applicative, Apply, Functor, Monad, Monoid, Semigroupal}
+import cats.{
+  Applicative,
+  Apply,
+  Functor,
+  Monad,
+  MonadError,
+  Monoid,
+  Semigroupal
+}
 import slick.dbio.DBIO
 
 import scala.concurrent.ExecutionContext
@@ -13,15 +21,30 @@ object functionalDBIO {
 
   given (using ExecutionContext): Monad[DBIO] with
     override def pure[A](x: A): DBIO[A] = DBIO.successful(x)
-
     override def flatMap[A, B](fa: DBIO[A])(
         f: A => DBIO[B]
     ): DBIO[B] = fa.flatMap(f)
-
     // not stack safe
     override def tailRecM[A, B](a: A)(
         f: A => DBIO[Either[A, B]]
     ): DBIO[B] =
+      f(a).flatMap {
+        case Left(nextA) => tailRecM(nextA)(f)
+        case Right(b)    => DBIO.successful(b)
+      }
+
+  given [E <: Throwable](using ExecutionContext): MonadError[DBIO, E] with
+    override def raiseError[A](e: E): DBIO[A] = DBIO.failed(e)
+    override def handleErrorWith[A](fa: DBIO[A])(
+        f: E => DBIO[A]
+    ): DBIO[A] = fa.asTry.flatMap {
+      case scala.util.Success(a) => DBIO.successful(a)
+      case scala.util.Failure(e) => f(e.asInstanceOf[E])
+    }
+    override def pure[A](x: A): DBIO[A] = DBIO.successful(x)
+    override def flatMap[A, B](fa: DBIO[A])(f: A => DBIO[B]): DBIO[B] =
+      fa.flatMap(f)
+    override def tailRecM[A, B](a: A)(f: A => DBIO[Either[A, B]]): DBIO[B] =
       f(a).flatMap {
         case Left(nextA) => tailRecM(nextA)(f)
         case Right(b)    => DBIO.successful(b)
@@ -35,7 +58,7 @@ object functionalDBIO {
     override def empty: DBIO[A] = DBIO.successful(Monoid[A].empty)
     override def combine(x: DBIO[A], y: DBIO[A]): DBIO[A] =
       x.zipWith(y)(Monoid[A].combine)
-  
+
   given (using ExecutionContext): Applicative[DBIO] with
     override def pure[A](x: A): DBIO[A] = DBIO.successful(x)
     override def ap[A, B](ff: DBIO[A => B])(fa: DBIO[A]): DBIO[B] =
@@ -44,10 +67,8 @@ object functionalDBIO {
   given (using ExecutionContext): Apply[DBIO] with
     override def ap[A, B](ff: DBIO[A => B])(fa: DBIO[A]): DBIO[B] =
       ff.flatMap(fa.map)
-
     override def map[A, B](fa: DBIO[A])(f: A => B): DBIO[B] =
       fa.map(f)
-
     override def map2[A, B, Z](
         fa: DBIO[A],
         fb: DBIO[B]
