@@ -1,8 +1,8 @@
 package repositories
 
-import extensions.DBIOA
 import models.MediaAttachment
 import play.api.db.slick.DatabaseConfigProvider
+import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile
 
 import javax.inject.{Inject, Singleton}
@@ -21,7 +21,7 @@ trait MediaRepository extends Repository {
       url: Option[String] = None,
       thumbnailUrl: Option[String] = None,
       remoteUrl: Option[String] = None
-  ): DBIOA[MediaAttachment]
+  ): DBIO[MediaAttachment]
 }
 
 @Singleton
@@ -31,7 +31,7 @@ class MediaRepositoryImpl @Inject (dbConfigProvider: DatabaseConfigProvider)(
   val dbConfig = dbConfigProvider.get[PostgresProfile]
 
   import MyPostgresDriver.api.*
-  
+
   def run[T] = dbConfig.db.run[T]
 
   def create(
@@ -46,7 +46,7 @@ class MediaRepositoryImpl @Inject (dbConfigProvider: DatabaseConfigProvider)(
       url: Option[String] = None,
       thumbnailUrl: Option[String] = None,
       remoteUrl: Option[String] = None
-  ): DBIOA[MediaAttachment] =
+  ): DBIO[MediaAttachment] =
     sql"""
        INSERT INTO media (
           file_name, content_type, file_size, account_id, blurhash, thumbnail_file_name, thumbnail_content_type, thumbnail_file_size, url, thumbnail_url, remote_url

@@ -1,7 +1,7 @@
 package repositories
 
-import extensions.DBIOA
 import play.api.db.slick.DatabaseConfigProvider
+import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile
 
 import javax.inject.{Inject, Singleton}
@@ -17,12 +17,12 @@ trait AccountRepository extends Repository {
       note: String = "",
       url: Option[String] = None,
       fields: Option[String] = None
-  ): DBIOA[Long]
+  ): DBIO[Long]
   def findByUsername(
       username: String,
       domain: Option[String]
-  ): DBIOA[Option[Tables.AccountsRow]]
-  def findByUserId(userId: Long): DBIOA[Option[Tables.AccountsRow]]
+  ): DBIO[Option[Tables.AccountsRow]]
+  def findByUserId(userId: Long): DBIO[Option[Tables.AccountsRow]]
 }
 
 @Singleton
@@ -48,7 +48,7 @@ class AccountRepositoryImpl @Inject() (
       note: String = "",
       url: Option[String] = None,
       fields: Option[String] = None
-  ): DBIOA[Long] =
+  ): DBIO[Long] =
     sql"""
       INSERT INTO accounts (
         username, domain, display_name, locked, bot, note, url, fields
@@ -61,7 +61,7 @@ class AccountRepositoryImpl @Inject() (
   def findByUsername(
       username: String,
       domain: Option[String]
-  ): DBIOA[Option[Tables.AccountsRow]] =
+  ): DBIO[Option[Tables.AccountsRow]] =
     Tables.Accounts
       .filter(account =>
         account.username === username && (domain match {
@@ -72,7 +72,7 @@ class AccountRepositoryImpl @Inject() (
       .result
       .headOption
 
-  def findByUserId(userId: Long): DBIOA[Option[Tables.AccountsRow]] =
+  def findByUserId(userId: Long): DBIO[Option[Tables.AccountsRow]] =
     Tables.Users
       .filter(_.id === userId)
       .join(Tables.Accounts)

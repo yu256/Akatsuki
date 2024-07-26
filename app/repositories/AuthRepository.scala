@@ -1,8 +1,8 @@
 package repositories
 
-import extensions.DBIOA
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import play.api.db.slick.DatabaseConfigProvider
+import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile
 
 import javax.inject.{Inject, Singleton}
@@ -13,38 +13,38 @@ trait AuthRepository extends Repository {
       userId: Long,
       applicationId: Option[Long] = None,
       scopes: Option[String] = None
-  ): DBIOA[Tables.AccessTokensRow]
+  ): DBIO[Tables.AccessTokensRow]
 
   def createApp(
       clientName: String,
       redirectUris: String,
       scopes: Option[String],
       website: Option[String]
-  ): DBIOA[Tables.ApplicationsRow]
+  ): DBIO[Tables.ApplicationsRow]
 
   def genAppCode(
       clientId: Long
-  ): DBIOA[String]
+  ): DBIO[String]
 
   def findAppByApplicationId(
       applicationId: Long
-  ): DBIOA[Option[Tables.ApplicationsRow]]
+  ): DBIO[Option[Tables.ApplicationsRow]]
 
   def saveOwnerId(
       clientId: Long,
       ownerId: Long
-  ): DBIOA[Int]
+  ): DBIO[Int]
 
   def findUserByCode(
       code: String
-  ): DBIOA[Option[(Tables.ApplicationsRow, Tables.UsersRow)]]
+  ): DBIO[Option[(Tables.ApplicationsRow, Tables.UsersRow)]]
 
-  def findToken(token: String): DBIOA[Option[Tables.AccessTokensRow]]
+  def findToken(token: String): DBIO[Option[Tables.AccessTokensRow]]
   def findToken(
       applicationId: Long,
       scopes: Option[String] = None,
       userId: Long
-  ): DBIOA[Option[Tables.AccessTokensRow]]
+  ): DBIO[Option[Tables.AccessTokensRow]]
 }
 
 @Singleton
@@ -66,7 +66,7 @@ class AuthRepositoryImpl @Inject (dbConfigProvider: DatabaseConfigProvider)(
       userId: Long,
       applicationId: Option[Long] = None,
       scopes: Option[String] = None
-  ): DBIOA[Tables.AccessTokensRow] =
+  ): DBIO[Tables.AccessTokensRow] =
     sql"""
          INSERT INTO access_tokens (resource_owner_id, token, application_id, scopes)
          VALUES ($userId, $genUUID, $applicationId, $scopes)
@@ -80,7 +80,7 @@ class AuthRepositoryImpl @Inject (dbConfigProvider: DatabaseConfigProvider)(
       redirectUris: String,
       scopes: Option[String],
       website: Option[String]
-  ): DBIOA[Tables.ApplicationsRow] =
+  ): DBIO[Tables.ApplicationsRow] =
     sql"""
          INSERT INTO applications (name, redirect_uri, scopes, website, secret)
          VALUES ($clientName, $redirectUris, $scopes, $website, $genUUID)
@@ -91,7 +91,7 @@ class AuthRepositoryImpl @Inject (dbConfigProvider: DatabaseConfigProvider)(
 
   def findAppByApplicationId(
       applicationId: Long
-  ): DBIOA[Option[Tables.ApplicationsRow]] =
+  ): DBIO[Option[Tables.ApplicationsRow]] =
     Tables.Applications
       .filter(_.id === applicationId)
       .result
@@ -99,7 +99,7 @@ class AuthRepositoryImpl @Inject (dbConfigProvider: DatabaseConfigProvider)(
 
   def genAppCode(
       clientId: Long
-  ): DBIOA[String] = {
+  ): DBIO[String] = {
     val code = genUUID
 
     sql"""
@@ -112,7 +112,7 @@ class AuthRepositoryImpl @Inject (dbConfigProvider: DatabaseConfigProvider)(
   def saveOwnerId(
       clientId: Long,
       ownerId: Long
-  ): DBIOA[Int] =
+  ): DBIO[Int] =
     sql"""
         UPDATE applications
         SET owner_id = $ownerId
@@ -121,7 +121,7 @@ class AuthRepositoryImpl @Inject (dbConfigProvider: DatabaseConfigProvider)(
 
   def findUserByCode(
       code: String
-  ): DBIOA[Option[(Tables.ApplicationsRow, Tables.UsersRow)]] =
+  ): DBIO[Option[(Tables.ApplicationsRow, Tables.UsersRow)]] =
     Tables.Applications
       .filter(_.code === code)
       .join(Tables.Users)
@@ -129,7 +129,7 @@ class AuthRepositoryImpl @Inject (dbConfigProvider: DatabaseConfigProvider)(
       .result
       .headOption
 
-  def findToken(token: String): DBIOA[Option[Tables.AccessTokensRow]] =
+  def findToken(token: String): DBIO[Option[Tables.AccessTokensRow]] =
     Tables.AccessTokens
       .filter(_.token === token)
       .result
@@ -139,7 +139,7 @@ class AuthRepositoryImpl @Inject (dbConfigProvider: DatabaseConfigProvider)(
       applicationId: Long,
       scopes: Option[String] = None,
       userId: Long
-  ): DBIOA[Option[Tables.AccessTokensRow]] = {
+  ): DBIO[Option[Tables.AccessTokensRow]] = {
     val baseQuery =
       Tables.AccessTokens.filter(t =>
         t.applicationId === applicationId && t.resourceOwnerId === userId

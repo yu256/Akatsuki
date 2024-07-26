@@ -2,9 +2,9 @@ package repositories
 
 import cats.data.OptionT
 import cats.syntax.all.*
-import extensions.DBIOA
 import models.Status
 import play.api.db.slick.DatabaseConfigProvider
+import slick.dbio.DBIO
 import slick.jdbc.{GetResult, PostgresProfile}
 
 import javax.inject.{Inject, Singleton}
@@ -25,14 +25,14 @@ trait StatusRepository extends Repository {
       visibility: Int | String = 0,
       language: Option[String] = None,
       mediaIds: Seq[Long] = Seq.empty
-  ): DBIOA[Status]
-  def deleteStatus(statusId: Long, userId: Long): DBIOA[Option[Status]]
+  ): DBIO[Status]
+  def deleteStatus(statusId: Long, userId: Long): DBIO[Option[Status]]
   def timeline(
       tlType: TimelineType,
       max: Int,
       sinceId: Option[Long] = None,
       maxId: Option[Long] = None
-  ): DBIOA[Seq[Status]]
+  ): DBIO[Seq[Status]]
 }
 
 @Singleton
@@ -44,8 +44,6 @@ class StatusRepositoryImpl @Inject() (
 
   import MyPostgresDriver.api.*
   import dbConfig.*
-
-  private val functional = extensions.Functional()
 
   def run[T] = db.run[T]
 
@@ -70,7 +68,7 @@ class StatusRepositoryImpl @Inject() (
       visibility: Int | String = 0,
       language: Option[String] = None,
       mediaIds: Seq[Long] = Seq.empty
-  ): DBIOA[Status] = {
+  ): DBIO[Status] = {
     val visibilityValue = visibility match {
       case 0 | "public"   => 0
       case 1 | "unlisted" => 1
@@ -103,7 +101,7 @@ class StatusRepositoryImpl @Inject() (
       .map(Status.fromRow)
   }
 
-  def deleteStatus(statusId: Long, userId: Long): DBIOA[Option[Status]] =
+  def deleteStatus(statusId: Long, userId: Long): DBIO[Option[Status]] =
     sql"""
              WITH deleted AS (
                UPDATE statuses
@@ -129,7 +127,7 @@ class StatusRepositoryImpl @Inject() (
       max: Int,
       sinceId: Option[Long] = None,
       maxId: Option[Long] = None
-  ): DBIOA[Seq[Status]] =
+  ): DBIO[Seq[Status]] =
     import TimelineType.*
     val baseQuery = Tables.Statuses.filter(_.deletedAt.isEmpty)
     val partialQuery = tlType match {
@@ -157,8 +155,6 @@ class StatusRepositoryImpl @Inject() (
         partialQuery.filter(s => s.id > since && s.id < max)
       case _ => partialQuery
     }
-
-    import functional.*
 
     (for {
       status <- paginatedQuery

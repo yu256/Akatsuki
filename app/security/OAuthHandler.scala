@@ -2,9 +2,9 @@ package security
 
 import cats.data.OptionT
 import cats.syntax.all.*
-import extensions.DBIOA
 import repositories.{AuthRepository, Tables, UserRepository}
 import scalaoauth2.provider.*
+import slick.dbio.DBIO
 
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
@@ -14,10 +14,8 @@ class OAuthHandler @Inject() (
     userRepo: UserRepository
 )(using ExecutionContext)
     extends DataHandler[Tables.UsersRow] {
-  private val functional = extensions.Functional()
-  import functional.*
-
   import scala.util.chaining.scalaUtilChainingOps
+  import extensions.functionalDBIO.given 
 
   override def validateClient(
       maybeCredential: Option[ClientCredential],
@@ -56,7 +54,7 @@ class OAuthHandler @Inject() (
       authInfo: AuthInfo[Tables.UsersRow]
   ): Future[AccessToken] = (
     for {
-      clientId <- OptionT.fromOption[DBIOA](
+      clientId <- OptionT.fromOption[DBIO](
         authInfo.clientId >>= { _.toLongOption }
       )
       app <- OptionT(authRepo.findAppByApplicationId(clientId))
@@ -75,8 +73,8 @@ class OAuthHandler @Inject() (
       request: AuthorizationRequest
   ): Future[Option[Tables.UsersRow]] =
     (for {
-      credential <- OptionT.fromOption[DBIOA](maybeCredential)
-      (clientId, clientSecret) <- OptionT.fromOption[DBIOA](
+      credential <- OptionT.fromOption[DBIO](maybeCredential)
+      (clientId, clientSecret) <- OptionT.fromOption[DBIO](
         (credential.clientId.toLongOption, credential.clientSecret).tupled
       )
       app <- OptionT(authRepo.findAppByApplicationId(clientId))

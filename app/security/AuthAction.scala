@@ -1,10 +1,10 @@
 package security
 
 import cats.syntax.all.*
-import extensions.DBIOA
 import play.api.db.slick.DatabaseConfigProvider
 import play.api.mvc.*
 import repositories.AuthRepository
+import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile
 
 import javax.inject.{Inject, Singleton}
@@ -49,7 +49,7 @@ class AuthAction @Inject() (
     actionFunction compose Action(bodyParser)
 
   def asyncDB[A](bodyParser: BodyParser[A] = parse.anyContent)(
-      block: UserRequest[A] => DBIOA[Result]
+      block: UserRequest[A] => DBIO[Result]
   ): Action[A] =
-    apply[A](bodyParser).async(req => dbConfig.db.run(block(req)))
+    apply[A](bodyParser).async(block andThen dbConfig.db.run)
 }

@@ -1,7 +1,7 @@
 package repositories
 
-import extensions.DBIOA
 import play.api.db.slick.DatabaseConfigProvider
+import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile
 
 import javax.inject.{Inject, Singleton}
@@ -12,9 +12,9 @@ trait UserRepository extends Repository {
       email: Option[String] = None,
       encryptedPassword: String,
       accountId: Long
-  ): DBIOA[Long]
-  def findByEmail(email: String): DBIOA[Option[Tables.UsersRow]]
-  def findById(id: Long): DBIOA[Option[Tables.UsersRow]]
+  ): DBIO[Long]
+  def findByEmail(email: String): DBIO[Option[Tables.UsersRow]]
+  def findById(id: Long): DBIO[Option[Tables.UsersRow]]
 }
 
 @Singleton
@@ -32,7 +32,7 @@ class UserRepositoryImpl @Inject() (dbConfigProvider: DatabaseConfigProvider)(
       email: Option[String] = None,
       encryptedPassword: String,
       accountId: Long
-  ): DBIOA[Long] =
+  ): DBIO[Long] =
     sql"""
          INSERT INTO users (email, encrypted_password, account_id)
          VALUES ($email, $encryptedPassword, $accountId)
@@ -41,9 +41,9 @@ class UserRepositoryImpl @Inject() (dbConfigProvider: DatabaseConfigProvider)(
       .as[Long]
       .head
 
-  def findByEmail(email: String): DBIOA[Option[Tables.UsersRow]] =
+  def findByEmail(email: String): DBIO[Option[Tables.UsersRow]] =
     Tables.Users.filter(_.email === email).result.headOption
 
-  def findById(id: Long): DBIOA[Option[Tables.UsersRow]] =
+  def findById(id: Long): DBIO[Option[Tables.UsersRow]] =
     Tables.Users.filter(_.id === id).result.headOption
 }
