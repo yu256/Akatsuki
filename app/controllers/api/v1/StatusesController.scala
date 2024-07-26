@@ -37,7 +37,7 @@ class StatusesController @Inject() (
   )
 
   val post: Action[StatusRequest] =
-    authAction(parse.form {
+    authAction.asyncDB(parse.form {
       Form(
         mapping(
           "status" -> text,
@@ -75,22 +75,21 @@ class StatusesController @Inject() (
           )
         )
       )
-    }).async { case UserRequest(userId, request) =>
+    }) { case UserRequest(userId, request) =>
       val req = request.body
-      statusRepo.run(
-        statusRepo
-          .createStatus(
-            accountId = userId,
-            text = req.status,
-            sensitive = req.sensitive,
-            spoilerText = req.spoilerText,
-            visibility = req.visibility.getOrElse(0),
-            language = req.language,
-            mediaIds =
-              req.mediaIds.map(_.flatMap(_.toLongOption)).getOrElse(Seq.empty)
-          )
-          .map(status => Ok(Json.toJson(status)))
-      )
+
+      statusRepo
+        .createStatus(
+          accountId = userId,
+          text = req.status,
+          sensitive = req.sensitive,
+          spoilerText = req.spoilerText,
+          visibility = req.visibility.getOrElse(0),
+          language = req.language,
+          mediaIds =
+            req.mediaIds.map(_.flatMap(_.toLongOption)).getOrElse(Seq.empty)
+        )
+        .map(status => Ok(Json.toJson(status)))
     }
 
   def delete(id: Long): Action[AnyContent] =

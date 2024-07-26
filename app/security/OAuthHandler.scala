@@ -2,7 +2,8 @@ package security
 
 import cats.data.OptionT
 import cats.syntax.all.*
-import repositories.{AuthRepository, DBIOA, Tables, UserRepository}
+import extensions.DBIOA
+import repositories.{AuthRepository, Tables, UserRepository}
 import scalaoauth2.provider.*
 
 import javax.inject.Inject
@@ -15,6 +16,9 @@ class OAuthHandler @Inject() (
     extends DataHandler[Tables.UsersRow] {
   private val functional = extensions.Functional()
   import functional.*
+
+  import scala.util.chaining.scalaUtilChainingOps
+
   override def validateClient(
       maybeCredential: Option[ClientCredential],
       request: AuthorizationRequest
@@ -50,37 +54,35 @@ class OAuthHandler @Inject() (
 
   override def createAccessToken(
       authInfo: AuthInfo[Tables.UsersRow]
-  ): Future[AccessToken] = {
+  ): Future[AccessToken] = (
     for {
-      clientId <- OptionT.fromOption[Future](
+      clientId <- OptionT.fromOption[DBIOA](
         authInfo.clientId >>= { _.toLongOption }
       )
-      app <- OptionT(authRepo.run(authRepo.findAppByApplicationId(clientId)))
+      app <- OptionT(authRepo.findAppByApplicationId(clientId))
       tokenRow <- OptionT(
-        app.ownerId.traverse(id =>
-          authRepo.run(authRepo.createToken(id, app.id.some, app.scopes.some))
+        app.ownerId.traverse(
+          authRepo.createToken(_, app.id.some, app.scopes.some)
         )
       )
     } yield {
       toAccessToken(tokenRow)
     }
-  }.getOrElse(throw InvalidClient())
+  ).getOrElse(throw InvalidClient()) pipe authRepo.run
 
   override def findUser(
       maybeCredential: Option[ClientCredential],
       request: AuthorizationRequest
   ): Future[Option[Tables.UsersRow]] =
-    authRepo.run {
-      (for {
-        credential <- OptionT.fromOption[DBIOA](maybeCredential)
-        (clientId, clientSecret) <- OptionT.fromOption[DBIOA](
-          (credential.clientId.toLongOption, credential.clientSecret).tupled
-        )
-        app <- OptionT(authRepo.findAppByApplicationId(clientId))
-        if app.secret == clientSecret
-        user <- OptionT(app.ownerId flatTraverse userRepo.findById)
-      } yield user).value
-    }
+    (for {
+      credential <- OptionT.fromOption[DBIOA](maybeCredential)
+      (clientId, clientSecret) <- OptionT.fromOption[DBIOA](
+        (credential.clientId.toLongOption, credential.clientSecret).tupled
+      )
+      app <- OptionT(authRepo.findAppByApplicationId(clientId))
+      if app.secret == clientSecret
+      user <- OptionT(app.ownerId flatTraverse userRepo.findById)
+    } yield user).value pipe authRepo.run
 
   override def findAuthInfoByRefreshToken(
       refreshToken: String
@@ -122,20 +124,19 @@ class OAuthHandler @Inject() (
   override def findAuthInfoByAccessToken(
       accessToken: AccessToken
   ): Future[Option[AuthInfo[Tables.UsersRow]]] =
-    authRepo.run {
-      (for {
-        tokenRow <- OptionT(authRepo.findToken(accessToken.token))
-        app <- OptionT(
-          authRepo.findAppByApplicationId(tokenRow.applicationId.get)
-        )
-        user <- OptionT(userRepo.findById(tokenRow.resourceOwnerId))
-      } yield {
-        AuthInfo(
-          user,
-          app.id.toString.some,
-          app.scopes.some,
-          app.redirectUri.some
-        )
-      }).value
-    }
+    (for {
+      tokenRow <- OptionT(authRepo.findToken(accessToken.token))
+      app <- OptionT(
+        authRepo.findAppByApplicationId(tokenRow.applicationId.get)
+      )
+      user <- OptionT(userRepo.findById(tokenRow.resourceOwnerId))
+    } yield {
+      AuthInfo(
+        user,
+        app.id.toString.some,
+        app.scopes.some,
+        app.redirectUri.some
+      )
+    }).value pipe authRepo.run
+
 }
