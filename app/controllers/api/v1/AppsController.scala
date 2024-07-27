@@ -34,6 +34,9 @@ class AppsController @Inject() (
     )
   }) { request =>
     val AppsRequest(clientName, redirectUris, scopes, website) = request.body
+
+    import scala.util.chaining.scalaUtilChainingOps
+
     authRepo
       .createApp(
         clientName,
@@ -52,6 +55,6 @@ class AppsController @Inject() (
             "client_secret" -> app.secret
           )
         )
-      }
+      } pipe authRepo.run
   }
 }

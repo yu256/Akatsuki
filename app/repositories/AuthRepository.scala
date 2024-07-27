@@ -1,54 +1,50 @@
 package repositories
 
-import cats.syntax.all.*
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import play.api.db.slick.DatabaseConfigProvider
+import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
-trait AuthRepository {
+trait AuthRepository extends Repository {
   def createToken(
       userId: Long,
       applicationId: Option[Long] = None,
       scopes: Option[String] = None
-  ): Future[Tables.AccessTokensRow]
+  ): DBIO[Tables.AccessTokensRow]
 
   def createApp(
       clientName: String,
       redirectUris: String,
       scopes: Option[String],
       website: Option[String]
-  ): Future[Tables.ApplicationsRow]
+  ): DBIO[Tables.ApplicationsRow]
 
   def genAppCode(
       clientId: Long
-  ): Future[String]
+  ): DBIO[String]
 
   def findAppByApplicationId(
       applicationId: Long
-  ): Future[Option[Tables.ApplicationsRow]]
+  ): DBIO[Option[Tables.ApplicationsRow]]
 
   def saveOwnerId(
       clientId: Long,
       ownerId: Long
-  ): Future[Int]
+  ): DBIO[Int]
 
   def findUserByCode(
       code: String
-  ): Future[Option[(Tables.ApplicationsRow, Tables.UsersRow)]]
+  ): DBIO[Option[(Tables.ApplicationsRow, Tables.UsersRow)]]
 
-  def findUserIdByBearer(
-      bearer: String
-  ): Future[Option[Long]]
-
-  def findToken(token: String): Future[Option[Tables.AccessTokensRow]]
+  def findToken(token: String): DBIO[Option[Tables.AccessTokensRow]]
   def findToken(
       applicationId: Long,
       scopes: Option[String] = None,
       userId: Long
-  ): Future[Option[Tables.AccessTokensRow]]
+  ): DBIO[Option[Tables.AccessTokensRow]]
 }
 
 @Singleton
@@ -64,27 +60,27 @@ class AuthRepositoryImpl @Inject (dbConfigProvider: DatabaseConfigProvider)(
 
   private inline def genUUID = java.util.UUID.randomUUID().toString
 
+  def run[T] = db.run[T]
+
   def createToken(
       userId: Long,
       applicationId: Option[Long] = None,
       scopes: Option[String] = None
-  ): Future[Tables.AccessTokensRow] =
-    db.run {
-      sql"""
+  ): DBIO[Tables.AccessTokensRow] =
+    sql"""
          INSERT INTO access_tokens (resource_owner_id, token, application_id, scopes)
          VALUES ($userId, $genUUID, $applicationId, $scopes)
          RETURNING *
        """
-        .as[Tables.AccessTokensRow]
-        .head
-    }
+      .as[Tables.AccessTokensRow]
+      .head
 
   def createApp(
       clientName: String,
       redirectUris: String,
       scopes: Option[String],
       website: Option[String]
-  ): Future[Tables.ApplicationsRow] = db.run {
+  ): DBIO[Tables.ApplicationsRow] =
     sql"""
          INSERT INTO applications (name, redirect_uri, scopes, website, secret)
          VALUES ($clientName, $redirectUris, $scopes, $website, $genUUID)
@@ -92,87 +88,68 @@ class AuthRepositoryImpl @Inject (dbConfigProvider: DatabaseConfigProvider)(
        """
       .as[Tables.ApplicationsRow]
       .head
-  }
 
   def findAppByApplicationId(
       applicationId: Long
-  ): Future[Option[Tables.ApplicationsRow]] =
-    db.run {
-      Tables.Applications
-        .filter(_.id === applicationId)
-        .result
-        .headOption
-    }
+  ): DBIO[Option[Tables.ApplicationsRow]] =
+    Tables.Applications
+      .filter(_.id === applicationId)
+      .result
+      .headOption
 
   def genAppCode(
       clientId: Long
-  ): Future[String] =
+  ): DBIO[String] = {
     val code = genUUID
-    db.run {
-      sql"""
-            UPDATE applications
-            SET code = $code
-            WHERE id = $clientId
-         """.asUpdate
-    } as code
+
+    sql"""
+      UPDATE applications
+      SET code = $code
+      WHERE id = $clientId
+    """.asUpdate.map(Function.const(code))
+  }
 
   def saveOwnerId(
       clientId: Long,
       ownerId: Long
-  ): Future[Int] =
-    db.run {
-      sql"""
-            UPDATE applications
-            SET owner_id = $ownerId
-            WHERE id = $clientId
-         """.asUpdate
-    }
+  ): DBIO[Int] =
+    sql"""
+        UPDATE applications
+        SET owner_id = $ownerId
+        WHERE id = $clientId
+     """.asUpdate
 
   def findUserByCode(
       code: String
-  ): Future[Option[(Tables.ApplicationsRow, Tables.UsersRow)]] =
-    db.run {
-      Tables.Applications
-        .filter(_.code === code)
-        .join(Tables.Users)
-        .on(_.ownerId === _.id)
-        .result
-        .headOption
-    }
+  ): DBIO[Option[(Tables.ApplicationsRow, Tables.UsersRow)]] =
+    Tables.Applications
+      .filter(_.code === code)
+      .join(Tables.Users)
+      .on(_.ownerId === _.id)
+      .result
+      .headOption
 
-  def findUserIdByBearer(bearer: String): Future[Option[Long]] =
-    db.run {
-      Tables.AccessTokens
-        .filter(_.token === bearer.substring(7))
-        .map(_.resourceOwnerId)
-        .result
-        .headOption
-    }
-
-  def findToken(token: String): Future[Option[Tables.AccessTokensRow]] =
-    db.run {
-      Tables.AccessTokens
-        .filter(_.token === token)
-        .result
-        .headOption
-    }
+  def findToken(token: String): DBIO[Option[Tables.AccessTokensRow]] =
+    Tables.AccessTokens
+      .filter(_.token === token)
+      .result
+      .headOption
 
   def findToken(
       applicationId: Long,
       scopes: Option[String] = None,
       userId: Long
-  ): Future[Option[Tables.AccessTokensRow]] =
-    db.run {
-      val baseQuery =
-        Tables.AccessTokens.filter(t =>
-          t.applicationId === applicationId && t.resourceOwnerId === userId
-        )
+  ): DBIO[Option[Tables.AccessTokensRow]] = {
+    val baseQuery =
+      Tables.AccessTokens.filter(t =>
+        t.applicationId === applicationId && t.resourceOwnerId === userId
+      )
 
-      scopes
-        .fold(baseQuery) { s =>
-          baseQuery.filter(t => t.scopes.map(_ === s))
-        }
-        .result
-        .headOption
-    }
+    scopes
+      .fold(baseQuery) { s =>
+        baseQuery.filter(t => t.scopes.map(_ === s))
+      }
+      .result
+      .headOption
+  }
 }

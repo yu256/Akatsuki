@@ -59,16 +59,18 @@ class MediaController @Inject() (
             for {
               blurhash <- moveAndRead >>= (BlurHashEncoder
                 .encodeBlurHash(4, 3, _))
-              media <- mediaRepo.create(
-                fileName = filename,
-                contentType = fileData.contentType,
-                fileSize = fileSize,
-                accountId = userId,
-                blurhash = blurhash,
-                thumbnailFileName = filename,
-                thumbnailContentType = fileData.contentType,
-                thumbnailFileSize = fileSize,
-                url = s"$baseUrl/$filename".some
+              media <- mediaRepo.run(
+                mediaRepo.create(
+                  fileName = filename,
+                  contentType = fileData.contentType,
+                  fileSize = fileSize,
+                  accountId = userId,
+                  blurhash = blurhash,
+                  thumbnailFileName = filename,
+                  thumbnailContentType = fileData.contentType,
+                  thumbnailFileSize = fileSize,
+                  url = s"$baseUrl/$filename".some
+                )
               )
             } yield {
               Ok(Json.toJson(media))

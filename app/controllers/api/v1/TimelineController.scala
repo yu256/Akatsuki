@@ -20,7 +20,7 @@ class TimelineController @Inject() (
       min_id: Option[String],
       limit: Option[Int]
   ): Action[AnyContent] =
-    authAction().async { request =>
+    authAction.asyncDB() { request =>
       statusRepo
         .timeline(
           statusRepo.TimelineType.Home(request.userId),
@@ -32,4 +32,5 @@ class TimelineController @Inject() (
           Ok(Json.toJson(statuses))
         }
     }
+
 }

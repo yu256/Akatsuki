@@ -1,8 +1,9 @@
 package controllers.api.v1
 
-import cats.data.{EitherT, OptionT}
+import cats.data.EitherT
 import cats.syntax.all.*
 import models.Account
+import org.postgresql.util.PSQLException
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import play.api.data.Form
 import play.api.data.Forms.*
@@ -10,7 +11,9 @@ import play.api.libs.json.*
 import play.api.libs.json.Json.JsValueWrapper
 import play.api.mvc.*
 import repositories.{AccountRepository, AuthRepository, UserRepository}
+import scalaoauth2.provider.InvalidRequest
 import security.AuthAction
+import slick.dbio.DBIO
 
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
@@ -24,59 +27,54 @@ class AccountsController @Inject() (
 )(using ExecutionContext)
     extends AbstractController(cc) {
   import AccountsController.*
+  import extensions.functionalDBIO.{asEither, given}
 
-  // todo: run db transactional
   def register(redirect: Option[String]): Action[RegisterRequest] =
-    Action.async(parse.form(userForm)) { request =>
-      extension (opt: Option[?]) {
-        private def ensureNone(msg: String): Either[String, Unit] =
-          opt.fold(Right(()))(_ => Left(msg))
-      }
-
+    authAction.asyncDBNoAuth(parse.form(userForm)) { request =>
       val bcrypt = BCryptPasswordEncoder()
-      val accessTokenEitherT = for {
-        _ <- EitherT.fromEither[Future](validateRegisterRequest(request.body))
-        _ <- EitherT(
-          (
-            accountRepo
-              .findByUsername(request.body.username, None)
-              .map(_.ensureNone("username is duplicated.")),
-            request.body.email.traverse {
-              userRepo
-                .findByEmail(_)
-                .map(_.ensureNone("email is duplicated."))
-            }
-          ).mapN(_ *> _.getOrElse(Right(())))
-        )
-        accountId <- EitherT.liftF(
+      val dbAction = for {
+        accountId <-
           accountRepo.create(
             username = request.body.username,
             displayName = request.body.username
           )
-        )
-        userId <- EitherT.liftF(
+        userId <-
           userRepo.create(
             email = request.body.email,
             encryptedPassword = bcrypt.encode(request.body.password),
             accountId = accountId
           )
-        )
-        tokenRow <- EitherT.liftF(
+        tokenRow <-
           authRepo.createToken(
             userId = userId,
             scopes = "read write follow push".some
           )
-        )
+      } yield userId -> tokenRow.token
+
+      import repositories.MyPostgresDriver.MyAPI.jdbcActionExtensionMethods
+
+      val token: EitherT[DBIO, Throwable, String] = for {
+        _ <- EitherT.fromEither[DBIO](validateRegisterRequest(request.body))
+        (userId, token) <- EitherT(dbAction.transactionally.asEither)
         _ <- EitherT.liftF {
           request.session
             .get("clientId")
             .flatMap(_.toLongOption)
             .traverse_(authRepo.saveOwnerId(_, userId))
         }
-      } yield tokenRow.token
+      } yield token
 
-      accessTokenEitherT.fold(
-        error => BadRequest(Json.obj("error" -> error)),
+      token.fold(
+        {
+          case ex: InvalidRequest =>
+            BadRequest(Json.obj("error" -> ex.description))
+          case ex: PSQLException =>
+            (ex.getSQLState match {
+              case "23505" => // Unique constraint violation
+                BadRequest
+              case _ => InternalServerError
+            }).apply(Json.obj("error" -> ex.getMessage))
+        },
         accessToken =>
           redirect match {
             case Some(url) => Redirect(url)
@@ -94,7 +92,7 @@ class AccountsController @Inject() (
 
   private def validateRegisterRequest(
       request: RegisterRequest
-  ): Either[String, Unit] = {
+  ): Either[InvalidRequest, Unit] = {
     val cond = Either.cond[String, Unit](_, (), _)
 
     cond(
@@ -112,15 +110,16 @@ class AccountsController @Inject() (
     ) >> cond(
       request.reason.forall(_.length <= 200),
       "Reason must be at most 200 characters long"
-    )
+    ) leftMap (InvalidRequest(_))
   }
 
   val verify: Action[AnyContent] =
     authAction().async { request =>
-      OptionT {
-        accountRepo
-          .findByUserId(request.userId)
-      }
+      accountRepo
+        .runM(
+          accountRepo
+            .findByUserId(request.userId)
+        )
         .map(Account.fromRow)
         .fold(InternalServerError(Json.obj("error" -> "Account not found"))) {
           account => Ok(Json.toJson(account))
