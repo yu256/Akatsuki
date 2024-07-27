@@ -1,11 +1,13 @@
 package controllers.api.v1
 
+import cats.data.OptionT
 import play.api.data.Form
 import play.api.data.Forms.*
 import play.api.libs.json.*
 import play.api.mvc.*
 import repositories.StatusRepository
 import security.{AuthAction, UserRequest}
+import extensions.functionalDBIO.given
 
 import javax.inject.Inject
 import scala.concurrent.ExecutionContext
@@ -93,9 +95,8 @@ class StatusesController @Inject() (
     }
 
   def delete(id: Long): Action[AnyContent] =
-    authAction().async { case UserRequest(userId, _) =>
-      statusRepo
-        .runM(statusRepo.deleteStatus(id, userId))
+    authAction.asyncDB() { case UserRequest(userId, _) =>
+      OptionT(statusRepo.deleteStatus(id, userId))
         .fold(NotFound(Json.obj("error" -> "Record not found"))) { status =>
           Ok(Json.toJson(status))
         }

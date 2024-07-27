@@ -52,4 +52,9 @@ class AuthAction @Inject() (
       block: UserRequest[A] => DBIO[Result]
   ): Action[A] =
     apply[A](bodyParser).async(block andThen dbConfig.db.run)
+
+  def asyncDBNoAuth[A](bodyParser: BodyParser[A] = parse.anyContent)(
+      block: Request[A] => DBIO[Result]
+  ): Action[A] =
+    Action.async(bodyParser)(block andThen dbConfig.db.run)
 }

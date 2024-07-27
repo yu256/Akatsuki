@@ -3,6 +3,7 @@ package controllers.api.v1
 import cats.data.EitherT
 import cats.syntax.all.*
 import models.Account
+import org.postgresql.util.PSQLException
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import play.api.data.Form
 import play.api.data.Forms.*
@@ -10,7 +11,9 @@ import play.api.libs.json.*
 import play.api.libs.json.Json.JsValueWrapper
 import play.api.mvc.*
 import repositories.{AccountRepository, AuthRepository, UserRepository}
+import scalaoauth2.provider.InvalidRequest
 import security.AuthAction
+import slick.dbio.DBIO
 
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
@@ -24,9 +27,10 @@ class AccountsController @Inject() (
 )(using ExecutionContext)
     extends AbstractController(cc) {
   import AccountsController.*
+  import extensions.functionalDBIO.{asEither, given}
 
   def register(redirect: Option[String]): Action[RegisterRequest] =
-    Action.async(parse.form(userForm)) { request =>
+    authAction.asyncDBNoAuth(parse.form(userForm)) { request =>
       val bcrypt = BCryptPasswordEncoder()
       val dbAction = for {
         accountId <-
@@ -49,19 +53,28 @@ class AccountsController @Inject() (
 
       import repositories.MyPostgresDriver.MyAPI.jdbcActionExtensionMethods
 
-      val token: EitherT[Future, String, String] = for {
-        _ <- EitherT.fromEither[Future](validateRegisterRequest(request.body))
-        (userId, token) <- EitherT.liftF(authRepo.run(dbAction.transactionally))
+      val token: EitherT[DBIO, Throwable, String] = for {
+        _ <- EitherT.fromEither[DBIO](validateRegisterRequest(request.body))
+        (userId, token) <- EitherT(dbAction.transactionally.asEither)
         _ <- EitherT.liftF {
           request.session
             .get("clientId")
             .flatMap(_.toLongOption)
-            .traverse_(id => authRepo.run(authRepo.saveOwnerId(id, userId)))
+            .traverse_(authRepo.saveOwnerId(_, userId))
         }
       } yield token
 
       token.fold(
-        error => BadRequest(Json.obj("error" -> error)),
+        {
+          case ex: InvalidRequest =>
+            BadRequest(Json.obj("error" -> ex.description))
+          case ex: PSQLException =>
+            (ex.getSQLState match {
+              case "23505" => // Unique constraint violation
+                BadRequest
+              case _ => InternalServerError
+            }).apply(Json.obj("error" -> ex.getMessage))
+        },
         accessToken =>
           redirect match {
             case Some(url) => Redirect(url)
@@ -79,7 +92,7 @@ class AccountsController @Inject() (
 
   private def validateRegisterRequest(
       request: RegisterRequest
-  ): Either[String, Unit] = {
+  ): Either[InvalidRequest, Unit] = {
     val cond = Either.cond[String, Unit](_, (), _)
 
     cond(
@@ -97,7 +110,7 @@ class AccountsController @Inject() (
     ) >> cond(
       request.reason.forall(_.length <= 200),
       "Reason must be at most 200 characters long"
-    )
+    ) leftMap (InvalidRequest(_))
   }
 
   val verify: Action[AnyContent] =

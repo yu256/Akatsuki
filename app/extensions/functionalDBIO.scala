@@ -9,11 +9,17 @@ import cats.{
   Monoid,
   Semigroupal
 }
-import slick.dbio.DBIO
+import slick.dbio.{DBIO, DBIOAction, Effect, NoStream}
 
 import scala.concurrent.ExecutionContext
 
 object functionalDBIO {
+  extension [R, S <: NoStream](
+      fa: DBIOAction[R, S, Effect.All]
+  ) {
+    def asEither: ExecutionContext ?=> DBIO[Either[Throwable, R]] =
+      fa.asTry.map(_.toEither)
+  }
   given (using ExecutionContext): Functor[DBIO] with
     override def map[A, B](fa: DBIO[A])(
         f: A => B
