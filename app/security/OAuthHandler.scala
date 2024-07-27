@@ -15,7 +15,7 @@ class OAuthHandler @Inject() (
 )(using ExecutionContext)
     extends DataHandler[Tables.UsersRow] {
   import scala.util.chaining.scalaUtilChainingOps
-  import extensions.functionalDBIO.given 
+  import extensions.functionalDBIO.given
 
   override def validateClient(
       maybeCredential: Option[ClientCredential],
@@ -125,7 +125,7 @@ class OAuthHandler @Inject() (
     (for {
       tokenRow <- OptionT(authRepo.findToken(accessToken.token))
       app <- OptionT(
-        authRepo.findAppByApplicationId(tokenRow.applicationId.get)
+        tokenRow.applicationId flatTraverse authRepo.findAppByApplicationId
       )
       user <- OptionT(userRepo.findById(tokenRow.resourceOwnerId))
     } yield {
