@@ -16,7 +16,7 @@ import security.AuthAction
 import slick.dbio.DBIO
 
 import javax.inject.Inject
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 class AccountsController @Inject() (
     authAction: AuthAction,
@@ -68,25 +68,21 @@ class AccountsController @Inject() (
         {
           case ex: InvalidRequest =>
             BadRequest(Json.obj("error" -> ex.description))
-          case ex: PSQLException =>
-            (ex.getSQLState match {
-              case "23505" => // Unique constraint violation
-                BadRequest
-              case _ => InternalServerError
-            }).apply(Json.obj("error" -> ex.getMessage))
+          case ex: PSQLException
+              if ex.getSQLState == "23505" /* Unique constraint violation */ =>
+            BadRequest(Json.obj("error" -> ex.getMessage))
+          case ex => InternalServerError(Json.obj("error" -> ex.getMessage))
         },
         accessToken =>
-          redirect match {
-            case Some(url) => Redirect(url)
-            case None =>
-              Ok(
-                Json.obj(
-                  "access_token" -> accessToken,
-                  "token_type" -> "Bearer",
-                  "scope" -> "read write follow push"
-                )
+          redirect.fold(
+            Ok(
+              Json.obj(
+                "access_token" -> accessToken,
+                "token_type" -> "Bearer",
+                "scope" -> "read write follow push"
               )
-          }
+            )
+          )(Redirect(_))
       )
     }
 
