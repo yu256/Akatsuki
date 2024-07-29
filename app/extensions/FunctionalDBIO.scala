@@ -13,7 +13,7 @@ import slick.dbio.{DBIO, DBIOAction, Effect, NoStream}
 
 import scala.concurrent.ExecutionContext
 
-object functionalDBIO {
+object FunctionalDBIO {
   extension [R, S <: NoStream](
       fa: DBIOAction[R, S, Effect.All]
   ) {

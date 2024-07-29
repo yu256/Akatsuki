@@ -1,12 +1,13 @@
 package controllers.api.v2
 
 import cats.syntax.all.*
+import play.api.db.slick.DatabaseConfigProvider
 import play.api.libs.Files.TemporaryFile
 import play.api.libs.json.*
 import play.api.mvc.*
 import play.api.{Configuration, Environment}
-import repositories.MediaRepository
-import security.{AuthAction, UserRequest}
+import repositories.{AuthRepository, MediaRepository}
+import security.{AuthController, UserRequest}
 
 import java.io.File
 import java.net.{URLDecoder, URLEncoder}
@@ -16,13 +17,14 @@ import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 
 class MediaController @Inject() (
-    authAction: AuthAction,
+    authRepo: AuthRepository,
     cc: ControllerComponents,
+    dbConfigProvider: DatabaseConfigProvider,
     env: Environment,
     config: Configuration,
     mediaRepo: MediaRepository
 )(using ExecutionContext)
-    extends AbstractController(cc) {
+    extends AuthController(authRepo, cc, dbConfigProvider) {
   def serveFile(fileName: String): Action[AnyContent] = Action { request =>
     val file = new File(env.getFile("media"), fileName)
     if file.exists && file.isFile then
@@ -59,7 +61,7 @@ class MediaController @Inject() (
             for {
               blurhash <- moveAndRead >>= (BlurHashEncoder
                 .encodeBlurHash(4, 3, _))
-              media <- mediaRepo.run(
+              media <- run(
                 mediaRepo.create(
                   fileName = filename,
                   contentType = fileData.contentType,

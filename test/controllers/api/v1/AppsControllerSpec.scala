@@ -13,7 +13,6 @@ import play.api.test.*
 import play.api.test.Helpers.*
 import repositories.{AuthRepository, Tables}
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile
 
 import java.time.ZonedDateTime
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -58,12 +57,12 @@ class AppsControllerSpec
         )
       ).thenReturn(DBIO.successful(testApp))
 
-      when(mockAuthRepo.run).thenReturn(
-        dbConfigProvider.get[PostgresProfile].db.run
-      )
-
       val appsController =
-        new AppsController(mockControllerComponents, mockAuthRepo)
+        new AppsController(
+          mockControllerComponents,
+          dbConfigProvider,
+          mockAuthRepo
+        )
 
       val request = FakeRequest(POST, "/apps").withFormUrlEncodedBody(
         "client_name" -> "test-client",
@@ -103,12 +102,12 @@ class AppsControllerSpec
         )
       ).thenReturn(DBIO.failed(Exception("Database error")))
 
-      when(mockAuthRepo.run).thenReturn(
-        dbConfigProvider.get[PostgresProfile].db.run
-      )
-
       val appsController =
-        new AppsController(mockControllerComponents, mockAuthRepo)
+        new AppsController(
+          mockControllerComponents,
+          dbConfigProvider,
+          mockAuthRepo
+        )
 
       val request = FakeRequest(POST, "/apps").withFormUrlEncodedBody(
         "client_name" -> "test-client",

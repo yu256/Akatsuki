@@ -1,14 +1,12 @@
 package repositories
 
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
-import play.api.db.slick.DatabaseConfigProvider
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.ExecutionContext
 
-trait AuthRepository extends Repository {
+trait AuthRepository {
   def createToken(
       userId: Long,
       applicationId: Option[Long] = None,
@@ -48,19 +46,13 @@ trait AuthRepository extends Repository {
 }
 
 @Singleton
-class AuthRepositoryImpl @Inject (dbConfigProvider: DatabaseConfigProvider)(
-    using ExecutionContext
-) extends AuthRepository {
-  val dbConfig = dbConfigProvider.get[PostgresProfile]
-
+class AuthRepositoryImpl @Inject() ()(using ExecutionContext)
+    extends AuthRepository {
   import MyPostgresDriver.api.*
-  import dbConfig.*
 
-  val bcrypt = new BCryptPasswordEncoder
+  private val bcrypt = new BCryptPasswordEncoder
 
   private inline def genUUID = java.util.UUID.randomUUID().toString
-
-  def run[T] = db.run[T]
 
   def createToken(
       userId: Long,

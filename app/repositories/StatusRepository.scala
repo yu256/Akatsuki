@@ -1,16 +1,13 @@
 package repositories
 
-import cats.data.OptionT
-import cats.syntax.all.*
 import models.Status
-import play.api.db.slick.DatabaseConfigProvider
 import slick.dbio.DBIO
-import slick.jdbc.{GetResult, PostgresProfile}
+import slick.jdbc.GetResult
 
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
-trait StatusRepository extends Repository {
+trait StatusRepository {
   enum TimelineType:
     case User(id: Long, showDM: Boolean = false)
     case Home(id: Long)
@@ -36,16 +33,9 @@ trait StatusRepository extends Repository {
 }
 
 @Singleton
-class StatusRepositoryImpl @Inject() (
-    dbConfigProvider: DatabaseConfigProvider
-)(using ExecutionContext)
+class StatusRepositoryImpl @Inject() ()(using ExecutionContext)
     extends StatusRepository {
-  val dbConfig = dbConfigProvider.get[PostgresProfile]
-
   import MyPostgresDriver.api.*
-  import dbConfig.*
-
-  def run[T] = db.run[T]
 
   given mediaSeqGR(using
       mediaGR: GetResult[Tables.MediaRow]

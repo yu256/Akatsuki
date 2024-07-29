@@ -1,14 +1,12 @@
 package repositories
 
 import models.MediaAttachment
-import play.api.db.slick.DatabaseConfigProvider
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.ExecutionContext
 
-trait MediaRepository extends Repository {
+trait MediaRepository {
   def create(
       fileName: String,
       contentType: Option[String],
@@ -25,14 +23,9 @@ trait MediaRepository extends Repository {
 }
 
 @Singleton
-class MediaRepositoryImpl @Inject (dbConfigProvider: DatabaseConfigProvider)(
-    using ExecutionContext
-) extends MediaRepository {
-  val dbConfig = dbConfigProvider.get[PostgresProfile]
-
+class MediaRepositoryImpl @Inject() ()(using ExecutionContext)
+    extends MediaRepository {
   import MyPostgresDriver.api.*
-
-  def run[T] = dbConfig.db.run[T]
 
   def create(
       fileName: String,

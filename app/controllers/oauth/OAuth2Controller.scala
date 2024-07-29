@@ -3,23 +3,25 @@ package controllers.oauth
 import cats.data.EitherT
 import cats.syntax.all.*
 import controllers.routes
+import play.api.db.slick.DatabaseConfigProvider
 import play.api.i18n.I18nSupport
 import play.api.libs.json.*
 import play.api.mvc.*
 import repositories.AuthRepository
 import scalaoauth2.provider.*
-import security.OAuthHandler
+import security.{CustomController, OAuthHandler}
 
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 
 class OAuth2Controller @Inject() (
     cc: ControllerComponents,
+    dbConfigProvider: DatabaseConfigProvider,
     authRepo: AuthRepository,
     oauthHandler: OAuthHandler
 )(using
     ExecutionContext
-) extends AbstractController(cc)
+) extends CustomController(cc, dbConfigProvider)
     with OAuth2Provider
     with I18nSupport {
   override val tokenEndpoint: TokenEndpoint = new TokenEndpoint {
@@ -46,18 +48,16 @@ class OAuth2Controller @Inject() (
         "Invalid client_id"
       )
       app <- EitherT.fromOptionF(
-        authRepo.run(authRepo.findAppByApplicationId(clientId)),
+        run(authRepo.findAppByApplicationId(clientId)),
         "Invalid client_id"
       )
       result <- EitherT.liftF {
         if app.ownerId.isDefined then
-          authRepo.run {
-            authRepo.genAppCode(clientId).map { code =>
-              redirect_uri match {
-                case "urn:ietf:wg:oauth:2.0:oob" =>
-                  Ok(views.html.auth_code(code))
-                case uri => Redirect(s"$uri?code=$code")
-              }
+          run(authRepo.genAppCode(clientId)).map { code =>
+            redirect_uri match {
+              case "urn:ietf:wg:oauth:2.0:oob" =>
+                Ok(views.html.auth_code(code))
+              case uri => Redirect(s"$uri?code=$code")
             }
           }
         else

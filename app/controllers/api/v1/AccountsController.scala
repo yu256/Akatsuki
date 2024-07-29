@@ -7,30 +7,31 @@ import org.postgresql.util.PSQLException
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import play.api.data.Form
 import play.api.data.Forms.*
+import play.api.db.slick.DatabaseConfigProvider
 import play.api.libs.json.*
 import play.api.libs.json.Json.JsValueWrapper
 import play.api.mvc.*
 import repositories.{AccountRepository, AuthRepository, UserRepository}
 import scalaoauth2.provider.InvalidRequest
-import security.AuthAction
+import security.AuthController
 import slick.dbio.DBIO
 
 import javax.inject.Inject
 import scala.concurrent.ExecutionContext
 
 class AccountsController @Inject() (
-    authAction: AuthAction,
+    authRepo: AuthRepository,
     cc: ControllerComponents,
+    dbConfigProvider: DatabaseConfigProvider,
     accountRepo: AccountRepository,
-    userRepo: UserRepository,
-    authRepo: AuthRepository
+    userRepo: UserRepository
 )(using ExecutionContext)
-    extends AbstractController(cc) {
+    extends AuthController(authRepo, cc, dbConfigProvider) {
   import AccountsController.*
-  import extensions.functionalDBIO.{asEither, given}
+  import extensions.FunctionalDBIO.{asEither, given}
 
   def register(redirect: Option[String]): Action[RegisterRequest] =
-    authAction.asyncDBNoAuth(parse.form(userForm)) { request =>
+    ActionDB(parse.form(userForm)) { request =>
       val bcrypt = BCryptPasswordEncoder()
       val dbAction = for {
         accountId <-
@@ -111,11 +112,10 @@ class AccountsController @Inject() (
 
   val verify: Action[AnyContent] =
     authAction().async { request =>
-      accountRepo
-        .runM(
-          accountRepo
-            .findByUserId(request.userId)
-        )
+      runM(
+        accountRepo
+          .findByUserId(request.userId)
+      )
         .map(Account.fromRow)
         .fold(InternalServerError(Json.obj("error" -> "Account not found"))) {
           account => Ok(Json.toJson(account))

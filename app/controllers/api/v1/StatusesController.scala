@@ -1,24 +1,24 @@
 package controllers.api.v1
 
-import cats.data.OptionT
 import play.api.data.Form
 import play.api.data.Forms.*
+import play.api.db.slick.DatabaseConfigProvider
 import play.api.libs.json.*
 import play.api.mvc.*
-import repositories.StatusRepository
-import security.{AuthAction, UserRequest}
-import extensions.functionalDBIO.given
+import repositories.{AuthRepository, StatusRepository}
+import security.{AuthController, UserRequest}
 
 import javax.inject.Inject
 import scala.concurrent.ExecutionContext
 
 class StatusesController @Inject() (
-    authAction: AuthAction,
+    authRepo: AuthRepository,
     cc: ControllerComponents,
+    dbConfigProvider: DatabaseConfigProvider,
     statusRepo: StatusRepository
 )(using
     ExecutionContext
-) extends AbstractController(cc) {
+) extends AuthController(authRepo, cc, dbConfigProvider) {
   case class StatusRequest(
       status: String,
       mediaIds: Option[Seq[String]],
@@ -39,7 +39,7 @@ class StatusesController @Inject() (
   )
 
   val post: Action[StatusRequest] =
-    authAction.asyncDB(parse.form {
+    authActionDB(parse.form {
       Form(
         mapping(
           "status" -> text,
@@ -95,8 +95,8 @@ class StatusesController @Inject() (
     }
 
   def delete(id: Long): Action[AnyContent] =
-    authAction.asyncDB() { case UserRequest(userId, _) =>
-      OptionT(statusRepo.deleteStatus(id, userId))
+    authAction().async { case UserRequest(userId, _) =>
+      runM(statusRepo.deleteStatus(id, userId))
         .fold(NotFound(Json.obj("error" -> "Record not found"))) { status =>
           Ok(Json.toJson(status))
         }

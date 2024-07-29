@@ -2,20 +2,27 @@ package security
 
 import cats.data.OptionT
 import cats.syntax.all.*
+import play.api.db.slick.DatabaseConfigProvider
 import repositories.{AuthRepository, Tables, UserRepository}
 import scalaoauth2.provider.*
 import slick.dbio.DBIO
+import slick.jdbc.PostgresProfile
 
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 
 class OAuthHandler @Inject() (
     authRepo: AuthRepository,
-    userRepo: UserRepository
+    userRepo: UserRepository,
+    dbConfigProvider: DatabaseConfigProvider
 )(using ExecutionContext)
     extends DataHandler[Tables.UsersRow] {
+  import extensions.FunctionalDBIO.given
+
   import scala.util.chaining.scalaUtilChainingOps
-  import extensions.functionalDBIO.given
+
+  private val dbConfig = dbConfigProvider.get[PostgresProfile]
+  private def run[T] = dbConfig.db.run[T]
 
   override def validateClient(
       maybeCredential: Option[ClientCredential],
@@ -26,7 +33,7 @@ class OAuthHandler @Inject() (
       (clientId, clientSecret) <- OptionT.fromOption[Future](
         (credential.clientId.toLongOption, credential.clientSecret).tupled
       )
-      app <- OptionT(authRepo.run(authRepo.findAppByApplicationId(clientId)))
+      app <- OptionT(run(authRepo.findAppByApplicationId(clientId)))
     } yield app.secret == clientSecret).getOrElse(false)
 
   private def toAccessToken(tokenRow: Tables.AccessTokensRow) =
@@ -43,11 +50,9 @@ class OAuthHandler @Inject() (
       authInfo: AuthInfo[Tables.UsersRow]
   ): Future[Option[AccessToken]] =
     authInfo.clientId.flatMap(_.toLongOption).flatTraverse { id =>
-      authRepo.run {
-        authRepo
-          .findToken(id, authInfo.scope, authInfo.user.id)
-          .map(_.map(toAccessToken))
-      }
+      authRepo
+        .findToken(id, authInfo.scope, authInfo.user.id)
+        .map(_.map(toAccessToken)) pipe run
     }
 
   override def createAccessToken(
@@ -66,7 +71,7 @@ class OAuthHandler @Inject() (
     } yield {
       toAccessToken(tokenRow)
     }
-  ).getOrElse(throw InvalidClient()) pipe authRepo.run
+  ).getOrElse(throw InvalidClient()) pipe run
 
   override def findUser(
       maybeCredential: Option[ClientCredential],
@@ -80,7 +85,7 @@ class OAuthHandler @Inject() (
       app <- OptionT(authRepo.findAppByApplicationId(clientId))
       if app.secret == clientSecret
       user <- OptionT(app.ownerId flatTraverse userRepo.findById)
-    } yield user).value pipe authRepo.run
+    } yield user).value pipe run
 
   override def findAuthInfoByRefreshToken(
       refreshToken: String
@@ -93,7 +98,7 @@ class OAuthHandler @Inject() (
 
   override def findAuthInfoByCode(
       code: String
-  ): Future[Option[AuthInfo[Tables.UsersRow]]] = authRepo.run {
+  ): Future[Option[AuthInfo[Tables.UsersRow]]] =
     authRepo
       .findUserByCode(code)
       .map(
@@ -105,19 +110,16 @@ class OAuthHandler @Inject() (
             app.redirectUri.some
           )
         }
-      )
-  }
+      ) pipe run
 
   override def deleteAuthCode(code: String): Future[Unit] =
     // do nothing
     ().pure
 
   override def findAccessToken(token: String): Future[Option[AccessToken]] =
-    authRepo.run {
-      authRepo
-        .findToken(token)
-        .map(_.map(toAccessToken))
-    }
+    authRepo
+      .findToken(token)
+      .map(_.map(toAccessToken)) pipe run
 
   override def findAuthInfoByAccessToken(
       accessToken: AccessToken
@@ -135,6 +137,6 @@ class OAuthHandler @Inject() (
         app.scopes.some,
         app.redirectUri.some
       )
-    }).value pipe authRepo.run
+    }).value pipe run
 
 }

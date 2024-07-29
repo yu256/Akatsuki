@@ -1,26 +1,28 @@
 package controllers.api.v1
 
+import play.api.db.slick.DatabaseConfigProvider
 import play.api.libs.json.*
 import play.api.mvc.*
-import repositories.StatusRepository
-import security.AuthAction
+import repositories.{AuthRepository, StatusRepository}
+import security.AuthController
 
 import javax.inject.Inject
 import scala.concurrent.ExecutionContext
 
 class TimelineController @Inject() (
-    authAction: AuthAction,
+    authRepo: AuthRepository,
     cc: ControllerComponents,
+    dbConfigProvider: DatabaseConfigProvider,
     statusRepo: StatusRepository
 )(using ExecutionContext)
-    extends AbstractController(cc) {
+    extends AuthController(authRepo, cc, dbConfigProvider) {
   def home(
       max_id: Option[String],
       since_id: Option[String],
       min_id: Option[String],
       limit: Option[Int]
   ): Action[AnyContent] =
-    authAction.asyncDB() { request =>
+    authActionDB() { request =>
       statusRepo
         .timeline(
           statusRepo.TimelineType.Home(request.userId),

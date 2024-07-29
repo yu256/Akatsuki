@@ -1,13 +1,11 @@
 package repositories
 
-import play.api.db.slick.DatabaseConfigProvider
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile
 
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.ExecutionContext
 
-trait UserRepository extends Repository {
+trait UserRepository {
   def create(
       email: Option[String] = None,
       encryptedPassword: String,
@@ -18,15 +16,9 @@ trait UserRepository extends Repository {
 }
 
 @Singleton
-class UserRepositoryImpl @Inject() (dbConfigProvider: DatabaseConfigProvider)(
-    using ExecutionContext
-) extends UserRepository {
-  val dbConfig = dbConfigProvider.get[PostgresProfile]
-
+class UserRepositoryImpl @Inject() ()(using ExecutionContext)
+    extends UserRepository {
   import MyPostgresDriver.api.*
-  import dbConfig.*
-
-  def run[T] = db.run[T]
 
   def create(
       email: Option[String] = None,

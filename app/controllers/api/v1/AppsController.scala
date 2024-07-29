@@ -2,18 +2,21 @@ package controllers.api.v1
 
 import play.api.data.Form
 import play.api.data.Forms.{mapping, nonEmptyText, optional, text}
+import play.api.db.slick.DatabaseConfigProvider
 import play.api.libs.json.Json
-import play.api.mvc.{AbstractController, Action, ControllerComponents}
+import play.api.mvc.{Action, ControllerComponents}
 import repositories.AuthRepository
+import security.CustomController
 
 import javax.inject.Inject
 import scala.concurrent.ExecutionContext
 
 class AppsController @Inject() (
     cc: ControllerComponents,
+    dbConfigProvider: DatabaseConfigProvider,
     authRepo: AuthRepository
 )(using ExecutionContext)
-    extends AbstractController(cc) {
+    extends CustomController(cc, dbConfigProvider) {
   case class AppsRequest(
       client_name: String,
       redirect_uris: String,
@@ -21,7 +24,7 @@ class AppsController @Inject() (
       website: Option[String]
   )
 
-  val apps: Action[AppsRequest] = Action.async(parse.form {
+  val apps: Action[AppsRequest] = ActionDB(parse.form {
     Form(
       mapping(
         "client_name" -> nonEmptyText,
@@ -34,8 +37,6 @@ class AppsController @Inject() (
     )
   }) { request =>
     val AppsRequest(clientName, redirectUris, scopes, website) = request.body
-
-    import scala.util.chaining.scalaUtilChainingOps
 
     authRepo
       .createApp(
@@ -63,6 +64,6 @@ class AppsController @Inject() (
               )
             )
         )
-      ) pipe authRepo.run
+      )
   }
 }
