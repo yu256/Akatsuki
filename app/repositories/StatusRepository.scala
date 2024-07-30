@@ -11,8 +11,11 @@ trait StatusRepository {
   enum TimelineType:
     case User(id: Long, showDM: Boolean = false)
     case Home(id: Long)
-    case Local
-    case Global
+    case Public(
+        local: Boolean = false,
+        remote: Boolean = false,
+        onlyMedia: Boolean = false
+    )
 
   def createStatus(
       accountId: Long,
@@ -134,8 +137,15 @@ class StatusRepositoryImpl @Inject() ()(using ExecutionContext)
               followTargetIds
             ))
           )
-      case Local  => baseQuery.filter(s => s.visibility === 0 && s.local)
-      case Global => baseQuery.filter(_.visibility === 0)
+      case Public(local, remote, onlyMedia) =>
+        val predicates = Seq.newBuilder[Tables.Statuses => Rep[Boolean]]
+        predicates += (_.visibility === 0)
+        if (local) predicates += (_.local)
+        if (remote) predicates += (!_.local)
+        if (onlyMedia) predicates += (_.mediaAttachmentIds.length() =!= 0)
+        predicates
+          .result()
+          .foldLeft(baseQuery)((acc, predicate) => acc.filter(predicate))
     }
 
     val paginatedQuery = (sinceId, maxId) match {

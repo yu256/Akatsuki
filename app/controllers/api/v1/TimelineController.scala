@@ -17,22 +17,43 @@ class TimelineController @Inject() (
 )(using ExecutionContext)
     extends AuthController(authRepo, cc, dbConfigProvider) {
   def home(
-      max_id: Option[String],
-      since_id: Option[String],
-      min_id: Option[String],
-      limit: Option[Int]
+      max_id: Option[Long],
+      since_id: Option[Long],
+      min_id: Option[Long],
+      limit: Int = 20
   ): Action[AnyContent] =
     authActionDB() { request =>
       statusRepo
         .timeline(
           statusRepo.TimelineType.Home(request.userId),
-          limit.getOrElse(20),
-          since_id.flatMap(_.toLongOption),
-          max_id.flatMap(_.toLongOption)
+          limit,
+          since_id orElse min_id,
+          max_id
         )
         .map { statuses =>
           Ok(Json.toJson(statuses))
         }
     }
 
+  def public(
+      local: Boolean = false,
+      remote: Boolean = false,
+      only_media: Boolean = false,
+      max_id: Option[Long],
+      since_id: Option[Long],
+      min_id: Option[Long],
+      limit: Int = 20
+  ): Action[AnyContent] =
+    authActionDB() { request =>
+      statusRepo
+        .timeline(
+          statusRepo.TimelineType.Public(local, remote, only_media),
+          limit,
+          since_id orElse min_id,
+          max_id
+        )
+        .map { statuses =>
+          Ok(Json.toJson(statuses))
+        }
+    }
 }

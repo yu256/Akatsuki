@@ -14,6 +14,7 @@ POST /api/v1/accounts controllers.api.v1.AccountsController.register(redirect: O
 GET /api/v1/accounts/verify_credentials controllers.api.v1.AccountsController.verify
 POST /api/v1/statuses controllers.api.v1.StatusesController.post
 DELETE /api/v1/statuses/:id controllers.api.v1.StatusesController.delete(id: Long)
-GET /api/v1/timelines/home controllers.api.v1.TimelineController.home(max_id: Option[String], since_id: Option[String], min_id: Option[String], limit: Option[Int])
+GET /api/v1/timelines/home controllers.api.v1.TimelineController.home(max_id: Option[Long], since_id: Option[Long], min_id: Option[Long], limit: Int = 20)
+GET /api/v1/timelines/public controllers.api.v1.TimelineController.public(local: Boolean = false, remote: Boolean = false, only_media: Boolean = false, max_id: Option[Long], since_id: Option[Long], min_id: Option[Long], limit: Int = 20)
 
 POST /api/v2/media controllers.api.v2.MediaController.post
