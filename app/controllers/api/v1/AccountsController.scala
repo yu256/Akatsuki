@@ -121,6 +121,25 @@ class AccountsController @Inject() (
           account => Ok(Json.toJson(account))
         }
     }
+
+  def getAccount(id: String): Action[AnyContent] = ActionDB() { _ =>
+    (for {
+      accountId <- EitherT.fromEither[DBIO](
+        id.toLongOption.toRight(
+          InvalidRequest("Invalid account ID")
+        )
+      )
+      account <- EitherT(accountRepo.findByAccountId(accountId).asEither)
+    } yield account.map(Account.fromRow)).fold(
+      {
+        case e: InvalidRequest => BadRequest(Json.obj("error" -> e.description))
+        case e => InternalServerError(Json.obj("error" -> e.getMessage))
+      },
+      _.fold(NotFound(Json.obj("error" -> "Account not found"))) { account =>
+        Ok(Json.toJson(account))
+      }
+    )
+  }
 }
 
 object AccountsController {

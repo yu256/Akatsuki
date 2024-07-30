@@ -20,6 +20,7 @@ trait AccountRepository {
       username: String,
       domain: Option[String]
   ): DBIO[Option[Tables.AccountsRow]]
+  def findByAccountId(accountId: Long): DBIO[Option[Tables.AccountsRow]]
   def findByUserId(userId: Long): DBIO[Option[Tables.AccountsRow]]
 }
 
@@ -62,6 +63,9 @@ class AccountRepositoryImpl @Inject() ()(using ExecutionContext)
       )
       .result
       .headOption
+
+  def findByAccountId(accountId: Long): DBIO[Option[Tables.AccountsRow]] =
+    Tables.Accounts.filter(_.id === accountId).result.headOption
 
   def findByUserId(userId: Long): DBIO[Option[Tables.AccountsRow]] =
     Tables.Users
