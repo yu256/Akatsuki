@@ -12,7 +12,8 @@ POST /api/v1/apps controllers.api.v1.AppsController.apps
 GET /api/v1/instance controllers.api.v1.InstanceController.instance
 POST /api/v1/accounts controllers.api.v1.AccountsController.register(redirect: Option[String])
 GET /api/v1/accounts/verify_credentials controllers.api.v1.AccountsController.verify
-GET /api/v1/accounts/*id controllers.api.v1.AccountsController.getAccount(id)
+GET /api/v1/accounts/:id controllers.api.v1.AccountsController.getAccount(id)
+GET /api/v1/accounts/:targetId/statuses controllers.api.v1.AccountsController.getUserTimeline(targetId: Long, only_media: Boolean = false, max_id: Option[Long], since_id: Option[Long], min_id: Option[Long], limit: Int = 20)
 POST /api/v1/statuses controllers.api.v1.StatusesController.post
 DELETE /api/v1/statuses/:id controllers.api.v1.StatusesController.delete(id: Long)
 GET /api/v1/timelines/home controllers.api.v1.TimelineController.home(max_id: Option[Long], since_id: Option[Long], min_id: Option[Long], limit: Int = 20)

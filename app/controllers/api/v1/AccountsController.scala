@@ -11,7 +11,7 @@ import play.api.db.slick.DatabaseConfigProvider
 import play.api.libs.json.*
 import play.api.libs.json.Json.JsValueWrapper
 import play.api.mvc.*
-import repositories.{AccountRepository, AuthRepository, UserRepository}
+import repositories.{AccountRepository, AuthRepository, StatusRepository, UserRepository}
 import scalaoauth2.provider.InvalidRequest
 import security.AuthController
 import slick.dbio.DBIO
@@ -24,7 +24,8 @@ class AccountsController @Inject() (
     cc: ControllerComponents,
     dbConfigProvider: DatabaseConfigProvider,
     accountRepo: AccountRepository,
-    userRepo: UserRepository
+    userRepo: UserRepository,
+    statusRepo: StatusRepository
 )(using ExecutionContext)
     extends AuthController(authRepo, cc, dbConfigProvider) {
   import AccountsController.*
@@ -140,6 +141,29 @@ class AccountsController @Inject() (
       }
     )
   }
+
+  def getUserTimeline(
+      target_id: Long,
+      only_media: Boolean = false,
+      max_id: Option[Long],
+      since_id: Option[Long],
+      min_id: Option[Long],
+      limit: Int = 20
+  ): Action[AnyContent] =
+    optionalAuthActionDB() { request =>
+      request.userId
+        .flatTraverse(userRepo.findById)
+        .flatMap { user =>
+          statusRepo
+            .timeline(
+              statusRepo.TimelineType.User(target_id, user.map(_.accountId)),
+              limit,
+              since_id orElse min_id,
+              max_id
+            )
+        }
+        .map { statuses => Ok(Json.toJson(statuses)) }
+    }
 }
 
 object AccountsController {

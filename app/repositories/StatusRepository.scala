@@ -9,7 +9,11 @@ import scala.concurrent.ExecutionContext
 
 trait StatusRepository {
   enum TimelineType:
-    case User(id: Long, showDM: Boolean = false)
+    case User(
+        targetId: Long,
+        userId: Option[Long] = None,
+        onlyMedia: Boolean = false
+    )
     case Home(id: Long)
     case Public(
         local: Boolean = false,
@@ -29,7 +33,7 @@ trait StatusRepository {
   def deleteStatus(statusId: Long, userId: Long): DBIO[Option[Status]]
   def timeline(
       tlType: TimelineType,
-      max: Int,
+      limit: Int,
       sinceId: Option[Long] = None,
       maxId: Option[Long] = None
   ): DBIO[Seq[Status]]
@@ -117,16 +121,30 @@ class StatusRepositoryImpl @Inject() ()(using ExecutionContext)
 
   def timeline(
       tlType: TimelineType,
-      max: Int,
+      limit: Int,
       sinceId: Option[Long] = None,
       maxId: Option[Long] = None
   ): DBIO[Seq[Status]] =
     import TimelineType.*
     val baseQuery = Tables.Statuses.filter(_.deletedAt.isEmpty)
     val partialQuery = tlType match {
-      case User(id, showDM) =>
-        val withDM = baseQuery.filter(_.accountId === id)
-        if (showDM) withDM else withDM.filterNot(_.visibility === 3)
+      case User(targetId, userId, onlyMedia) =>
+        val isFollowing =
+          Tables.Follows
+            .filter(f =>
+              f.accountId === userId && f.targetAccountId === targetId
+            )
+            .exists || userId.fold(false)(_ == targetId)
+
+        val statuses = baseQuery.filter(s =>
+          s.accountId === targetId && {
+            Case If isFollowing Then s.visibility =!= 3 Else s.visibility === 0
+          }
+        )
+
+        if onlyMedia then baseQuery.filter(_.mediaAttachmentIds.length() =!= 0)
+        else baseQuery
+
       case Home(id) =>
         val followTargetIds = Tables.Follows
           .filter(_.accountId === id)
@@ -139,13 +157,11 @@ class StatusRepositoryImpl @Inject() ()(using ExecutionContext)
           )
       case Public(local, remote, onlyMedia) =>
         val predicates = Seq.newBuilder[Tables.Statuses => Rep[Boolean]]
-        predicates += (_.visibility === 0)
-        if (local) predicates += (_.local)
-        if (remote) predicates += (!_.local)
-        if (onlyMedia) predicates += (_.mediaAttachmentIds.length() =!= 0)
-        predicates
-          .result()
-          .foldLeft(baseQuery)((acc, predicate) => acc.filter(predicate))
+        if local then predicates += (_.local)
+        if remote then predicates += (!_.local)
+        if onlyMedia then predicates += (_.mediaAttachmentIds.length() =!= 0)
+        predicates.result
+          .foldLeft(baseQuery.filter(_.visibility === 0))(_.filter(_))
     }
 
     val paginatedQuery = (sinceId, maxId) match {
@@ -158,7 +174,7 @@ class StatusRepositoryImpl @Inject() ()(using ExecutionContext)
 
     (for {
       status <- paginatedQuery
-        .take(max)
+        .take(limit)
         .sortBy(_.createdAt.desc)
       account <- Tables.Accounts if account.id === status.accountId
     } yield (status, account)).result
