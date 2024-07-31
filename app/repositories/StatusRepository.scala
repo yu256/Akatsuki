@@ -129,21 +129,23 @@ class StatusRepositoryImpl @Inject() ()(using ExecutionContext)
     val baseQuery = Tables.Statuses.filter(_.deletedAt.isEmpty)
     val partialQuery = tlType match {
       case User(targetId, accountId, onlyMedia) =>
-        val isFollowing =
-          Tables.Follows
-            .filter(f =>
-              f.accountId === accountId && f.targetAccountId === targetId
+        val predicates = Seq.newBuilder[Tables.Statuses => Rep[Boolean]]
+
+        accountId match {
+          case Some(id) if id != targetId =>
+            val isFollowing = Tables.Follows
+              .filter(f => f.accountId === id && f.targetAccountId === targetId)
+              .exists
+            predicates += (s =>
+              Case If isFollowing Then s.visibility =!= 3 Else s.visibility <= 1
             )
-            .exists || accountId.fold(false)(_ == targetId)
+          case None    => predicates += (_.visibility <= 1)
+          case Some(_) =>
+        }
+        if onlyMedia then predicates += (_.mediaAttachmentIds.length() =!= 0)
 
-        val statuses = baseQuery.filter(s =>
-          s.accountId === targetId && {
-            Case If isFollowing Then s.visibility =!= 3 Else s.visibility <= 1
-          }
-        )
-
-        if onlyMedia then statuses.filter(_.mediaAttachmentIds.length() =!= 0)
-        else statuses
+        predicates.result
+          .foldLeft(baseQuery.filter(_.accountId === targetId))(_.filter(_))
 
       case Home(id) =>
         val followTargetIds = Tables.Follows
