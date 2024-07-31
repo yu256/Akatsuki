@@ -11,10 +11,10 @@ trait StatusRepository {
   enum TimelineType:
     case User(
         targetId: Long,
-        userId: Option[Long] = None,
+        accountId: Option[Long] = None,
         onlyMedia: Boolean = false
     )
-    case Home(id: Long)
+    case Home(accountId: Long)
     case Public(
         local: Boolean = false,
         remote: Boolean = false,
@@ -128,22 +128,22 @@ class StatusRepositoryImpl @Inject() ()(using ExecutionContext)
     import TimelineType.*
     val baseQuery = Tables.Statuses.filter(_.deletedAt.isEmpty)
     val partialQuery = tlType match {
-      case User(targetId, userId, onlyMedia) =>
+      case User(targetId, accountId, onlyMedia) =>
         val isFollowing =
           Tables.Follows
             .filter(f =>
-              f.accountId === userId && f.targetAccountId === targetId
+              f.accountId === accountId && f.targetAccountId === targetId
             )
-            .exists || userId.fold(false)(_ == targetId)
+            .exists || accountId.fold(false)(_ == targetId)
 
         val statuses = baseQuery.filter(s =>
           s.accountId === targetId && {
-            Case If isFollowing Then s.visibility =!= 3 Else s.visibility === 0
+            Case If isFollowing Then s.visibility =!= 3 Else s.visibility <= 1
           }
         )
 
-        if onlyMedia then baseQuery.filter(_.mediaAttachmentIds.length() =!= 0)
-        else baseQuery
+        if onlyMedia then statuses.filter(_.mediaAttachmentIds.length() =!= 0)
+        else statuses
 
       case Home(id) =>
         val followTargetIds = Tables.Follows
