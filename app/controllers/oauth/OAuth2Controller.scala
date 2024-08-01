@@ -62,11 +62,12 @@ class OAuth2Controller @Inject() (
           }
         else
           Redirect(
-            routes.HomeController.index(
-              request.headers.get("Raw-Request-URI")
-            )
+            routes.HomeController.index
           ).withSession(
-            "clientId" -> client_id
+            "clientId" -> client_id,
+            "redirectTo" -> request.headers
+              .get("Raw-Request-URI")
+              .getOrElse(throw UnknownError("Failed to get Raw-Request-URI"))
           ).pure[Future]
       }
     } yield {

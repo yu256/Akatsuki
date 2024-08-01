@@ -1,4 +1,4 @@
-@(userForm: Form[controllers.api.v1.AccountsController.RegisterRequest], redirect: Option[String] = None)(implicit request: play.api.mvc.RequestHeader, messagesProvier: MessagesProvider)
+@(userForm: Form[controllers.api.v1.AccountsController.RegisterRequest])(implicit request: play.api.mvc.RequestHeader, messagesProvier: MessagesProvider)
 
 @import helper.*
 @import language.deprecated.symbolLiterals
@@ -10,7 +10,7 @@
 </head>
 <body>
 <div class="p-10">
-    @helper.form(action = api.v1.routes.AccountsController.register(redirect)) {
+    @helper.form(action = api.v1.routes.AccountsController.register) {
     @helper.inputText(userForm("username"), '_label -> "Username", '_help -> "This is your id.")
     @helper.inputText(userForm("email"), '_label -> "Email")
     @helper.inputPassword(userForm("password"), '_label -> "Password")

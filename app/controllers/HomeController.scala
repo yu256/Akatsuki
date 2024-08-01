@@ -17,8 +17,8 @@ class HomeController @Inject() (
     ExecutionContext
 ) extends AbstractController(cc)
     with I18nSupport {
-  def index(redirect: Option[String] = None): Action[AnyContent] = Action {
+  val index: Action[AnyContent] = Action {
     implicit request =>
-      Ok(views.html.index(userForm, redirect))
+      Ok(views.html.index(userForm))
   }
 }

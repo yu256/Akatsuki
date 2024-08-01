@@ -8,6 +8,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import play.api.data.Form
 import play.api.data.Forms.*
 import play.api.db.slick.DatabaseConfigProvider
+import play.api.i18n.I18nSupport
 import play.api.libs.json.*
 import play.api.libs.json.Json.JsValueWrapper
 import play.api.mvc.*
@@ -27,65 +28,85 @@ class AccountsController @Inject() (
     userRepo: UserRepository,
     statusRepo: StatusRepository
 )(using ExecutionContext)
-    extends AuthController(authRepo, cc, dbConfigProvider) {
+    extends AuthController(authRepo, cc, dbConfigProvider)
+    with I18nSupport {
   import AccountsController.*
   import extensions.FunctionalDBIO.{asEither, given}
 
-  def register(redirect: Option[String]): Action[RegisterRequest] =
-    ActionDB(parse.form(userForm)) { request =>
-      val bcrypt = BCryptPasswordEncoder()
-      val dbAction = for {
-        accountId <-
-          accountRepo.create(
-            username = request.body.username,
-            displayName = request.body.username
-          )
-        userId <-
-          userRepo.create(
-            email = request.body.email,
-            encryptedPassword = bcrypt.encode(request.body.password),
-            accountId = accountId
-          )
-        tokenRow <-
-          authRepo.createToken(
-            userId = userId,
-            scopes = "read write follow push".some
-          )
-      } yield userId -> tokenRow.token
+  val register: Action[AnyContent] =
+    ActionDB(
+    ) { implicit request =>
+      userForm
+        .bindFromRequest()
+        .fold(
+          formWithErrors => BadRequest(views.html.index(formWithErrors)).pure,
+          { body =>
+            val bcrypt = BCryptPasswordEncoder()
+            val dbAction = for {
+              accountId <-
+                accountRepo.create(
+                  username = body.username,
+                  displayName = body.username
+                )
+              userId <-
+                userRepo.create(
+                  email = body.email,
+                  encryptedPassword = bcrypt.encode(body.password),
+                  accountId = accountId
+                )
+              tokenRow <-
+                authRepo.createToken(
+                  userId = userId,
+                  scopes = "read write follow push".some
+                )
+            } yield userId -> tokenRow.token
 
-      import repositories.MyPostgresDriver.MyAPI.jdbcActionExtensionMethods
+            import repositories.MyPostgresDriver.MyAPI.jdbcActionExtensionMethods
 
-      val token: EitherT[DBIO, Throwable, String] = for {
-        _ <- EitherT.fromEither[DBIO](validateRegisterRequest(request.body))
-        (userId, token) <- EitherT(dbAction.transactionally.asEither)
-        _ <- EitherT.liftF {
-          request.session
-            .get("clientId")
-            .flatMap(_.toLongOption)
-            .traverse_(authRepo.saveOwnerId(_, userId))
-        }
-      } yield token
+            val token: EitherT[DBIO, Throwable, String] = for {
+              _ <- EitherT
+                .fromEither[DBIO](validateRegisterRequest(body))
+              (userId, token) <- EitherT(dbAction.transactionally.asEither)
+              _ <- EitherT.liftF {
+                request.session
+                  .get("clientId")
+                  .flatMap(_.toLongOption)
+                  .traverse_(authRepo.saveOwnerId(_, userId))
+              }
+            } yield token
 
-      token.fold(
-        {
-          case ex: InvalidRequest =>
-            BadRequest(Json.obj("error" -> ex.description))
-          case ex: PSQLException
-              if ex.getSQLState == "23505" /* Unique constraint violation */ =>
-            BadRequest(Json.obj("error" -> ex.getMessage))
-          case ex => InternalServerError(Json.obj("error" -> ex.getMessage))
-        },
-        accessToken =>
-          redirect.fold(
-            Ok(
-              Json.obj(
-                "access_token" -> accessToken,
-                "token_type" -> "Bearer",
-                "scope" -> "read write follow push"
-              )
+            token.fold(
+              {
+                case ex: InvalidRequest =>
+                  BadRequest(Json.obj("error" -> ex.description))
+                case ex: PSQLException
+                    if ex.getSQLState == "23505" /* Unique constraint violation */ =>
+                  val formWithErrors =
+                    if ex.getMessage.contains("username)=") then
+                      userForm
+                        .withError("username", "Username already exists")
+                    else
+                      userForm
+                        .withError("email", "Email already exists")
+                  BadRequest(views.html.index(formWithErrors))
+                case ex =>
+                  InternalServerError(Json.obj("error" -> ex.getMessage))
+              },
+              accessToken =>
+                request.session
+                  .get("redirectTo")
+                  .fold(
+                    Ok(
+                      Json.obj(
+                        "access_token" -> accessToken,
+                        "token_type" -> "Bearer",
+                        "scope" -> "read write follow push"
+                      )
+                    )
+                  )(Redirect(_))
             )
-          )(Redirect(_))
-      )
+          }
+        )
     }
 
   private def validateRegisterRequest(
