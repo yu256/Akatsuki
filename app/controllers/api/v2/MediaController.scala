@@ -38,7 +38,7 @@ class MediaController @Inject() (
 
   val post: Action[MultipartFormData[TemporaryFile]] =
     authAction(parse.multipartFormData).async {
-      case UserRequest(userId, request) =>
+      case UserRequest(user, request) =>
         request.body
           .file("file")
           .fold(BadRequest("Invalid file").pure[Future]) { fileData =>
@@ -66,7 +66,7 @@ class MediaController @Inject() (
                   fileName = filename,
                   contentType = fileData.contentType,
                   fileSize = fileSize,
-                  accountId = userId,
+                  accountId = user.accountId,
                   blurhash = blurhash,
                   thumbnailFileName = filename,
                   thumbnailContentType = fileData.contentType,

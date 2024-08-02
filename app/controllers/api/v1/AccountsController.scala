@@ -135,7 +135,7 @@ class AccountsController @Inject() (
     authAction().async { request =>
       runM(
         accountRepo
-          .findByUserId(request.userId)
+          .findByAccountId(request.user.accountId)
       )
         .map(Account.fromRow)
         .fold(InternalServerError(Json.obj("error" -> "Account not found"))) {
@@ -163,17 +163,14 @@ class AccountsController @Inject() (
       limit: Int = 20
   ): Action[AnyContent] =
     optionalAuthActionDB() { request =>
-      request.userId
-        .flatTraverse(userRepo.findById)
-        .flatMap { user =>
-          statusRepo
-            .timeline(
-              statusRepo.TimelineType.User(target_id, user.map(_.accountId)),
-              limit,
-              since_id orElse min_id,
-              max_id
-            )
-        }
+      statusRepo
+        .timeline(
+          statusRepo.TimelineType
+            .User(target_id, request.user.map(_.accountId)),
+          limit,
+          since_id orElse min_id,
+          max_id
+        )
         .map { statuses => Ok(Json.toJson(statuses)) }
     }
 

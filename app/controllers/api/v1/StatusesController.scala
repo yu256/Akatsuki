@@ -5,8 +5,8 @@ import play.api.data.Forms.*
 import play.api.db.slick.DatabaseConfigProvider
 import play.api.libs.json.*
 import play.api.mvc.*
-import repositories.{AuthRepository, StatusRepository, UserRepository}
-import security.{AuthController, UserRequest}
+import repositories.{AuthRepository, StatusRepository}
+import security.AuthController
 
 import javax.inject.Inject
 import scala.concurrent.ExecutionContext
@@ -15,8 +15,7 @@ class StatusesController @Inject() (
     authRepo: AuthRepository,
     cc: ControllerComponents,
     dbConfigProvider: DatabaseConfigProvider,
-    statusRepo: StatusRepository,
-    userRepo: UserRepository
+    statusRepo: StatusRepository
 )(using
     ExecutionContext
 ) extends AuthController(authRepo, cc, dbConfigProvider) {
@@ -38,9 +37,6 @@ class StatusesController @Inject() (
       multiple: Boolean, // default false
       hideTotals: Boolean // default false
   )
-
-  private inline def getAccountId[A](using request: UserRequest[A]) =
-    userRepo.findById(request.userId).map(_.get.accountId)
 
   val post: Action[StatusRequest] =
     authActionDB(parse.form {
@@ -81,29 +77,26 @@ class StatusesController @Inject() (
           )
         )
       )
-    }) { implicit request =>
+    }) { request =>
       val req = request.request.body
 
-      getAccountId
-        .flatMap {
-          statusRepo
-            .createStatus(
-              _,
-              text = req.status,
-              sensitive = req.sensitive,
-              spoilerText = req.spoilerText,
-              visibility = req.visibility.getOrElse(0),
-              language = req.language,
-              mediaIds =
-                req.mediaIds.map(_.flatMap(_.toLongOption)).getOrElse(Seq.empty)
-            )
-        }
+      statusRepo
+        .createStatus(
+          accountId = request.user.accountId,
+          text = req.status,
+          sensitive = req.sensitive,
+          spoilerText = req.spoilerText,
+          visibility = req.visibility.getOrElse(0),
+          language = req.language,
+          mediaIds =
+            req.mediaIds.map(_.flatMap(_.toLongOption)).getOrElse(Seq.empty)
+        )
         .map(status => Ok(Json.toJson(status)))
     }
 
   def delete(id: Long): Action[AnyContent] =
-    authAction().async { implicit request =>
-      runM(getAccountId flatMap { statusRepo.deleteStatus(id, _) })
+    authAction().async { request =>
+      runM(statusRepo.deleteStatus(id, request.user.accountId))
         .fold(NotFound(Json.obj("error" -> "Record not found"))) { status =>
           Ok(Json.toJson(status))
         }

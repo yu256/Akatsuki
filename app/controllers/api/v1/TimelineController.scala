@@ -3,7 +3,7 @@ package controllers.api.v1
 import play.api.db.slick.DatabaseConfigProvider
 import play.api.libs.json.*
 import play.api.mvc.*
-import repositories.{AuthRepository, StatusRepository, UserRepository}
+import repositories.{AuthRepository, StatusRepository}
 import security.AuthController
 
 import javax.inject.Inject
@@ -13,8 +13,7 @@ class TimelineController @Inject() (
     authRepo: AuthRepository,
     cc: ControllerComponents,
     dbConfigProvider: DatabaseConfigProvider,
-    statusRepo: StatusRepository,
-    userRepo: UserRepository
+    statusRepo: StatusRepository
 )(using ExecutionContext)
     extends AuthController(authRepo, cc, dbConfigProvider) {
   def home(
@@ -24,17 +23,13 @@ class TimelineController @Inject() (
       limit: Int = 20
   ): Action[AnyContent] =
     authActionDB() { request =>
-      userRepo
-        .findById(request.userId)
-        .flatMap { userAccountId =>
-          statusRepo
-            .timeline(
-              statusRepo.TimelineType.Home(userAccountId.get.accountId),
-              limit,
-              sinceId orElse minId,
-              maxId
-            )
-        }
+      statusRepo
+        .timeline(
+          statusRepo.TimelineType.Home(request.user.accountId),
+          limit,
+          sinceId orElse minId,
+          maxId
+        )
         .map { statuses =>
           Ok(Json.toJson(statuses))
         }

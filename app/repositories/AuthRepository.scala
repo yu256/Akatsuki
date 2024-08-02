@@ -43,6 +43,8 @@ trait AuthRepository {
       scopes: Option[String] = None,
       userId: Long
   ): DBIO[Option[Tables.AccessTokensRow]]
+
+  def findUserByToken(token: String): DBIO[Option[Tables.UsersRow]]
 }
 
 @Singleton
@@ -144,4 +146,10 @@ class AuthRepositoryImpl @Inject() ()(using ExecutionContext)
       .result
       .headOption
   }
+
+  override def findUserByToken(token: String): DBIO[Option[Tables.UsersRow]] =
+    (for {
+      tokens <- Tables.AccessTokens if tokens.token === token
+      users <- Tables.Users if users.id === tokens.resourceOwnerId
+    } yield users).result.headOption
 }

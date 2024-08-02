@@ -5,17 +5,19 @@ import cats.syntax.all.*
 import extensions.PolyFunc.~>
 import play.api.db.slick.DatabaseConfigProvider
 import play.api.mvc.*
-import repositories.AuthRepository
+import repositories.{AuthRepository, Tables}
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile
 
 import scala.concurrent.{ExecutionContext, Future}
 
-case class UserRequest[A](userId: Long, request: Request[A])
+case class UserRequest[A](user: Tables.UsersRow, request: Request[A])
     extends WrappedRequest[A](request)
 
-case class OptionalUserRequest[A](userId: Option[Long], request: Request[A])
-    extends WrappedRequest[A](request)
+case class OptionalUserRequest[A](
+    user: Option[Tables.UsersRow],
+    request: Request[A]
+) extends WrappedRequest[A](request)
 
 private abstract class AuthActionFunctionBase[R[_]](
     authRepo: AuthRepository,
@@ -26,12 +28,12 @@ private abstract class AuthActionFunctionBase[R[_]](
   protected def partialInvokeBlock[A](
       request: Request[A],
       block: R[A] => Future[Result]
-  ): Future[Option[repositories.Tables.AccessTokensRow]] =
+  ): Future[Option[repositories.Tables.UsersRow]] =
     request.headers
       .get("Authorization")
       .withFilter(_.startsWith("Bearer "))
       .map(_.drop(7))
-      .flatTraverse(authRepo.findToken andThen runner.apply)
+      .flatTraverse(authRepo.findUserByToken andThen runner.apply)
 }
 
 private class AuthActionFunction(
@@ -44,8 +46,8 @@ private class AuthActionFunction(
       block: UserRequest[A] => Future[Result]
   ): Future[Result] =
     partialInvokeBlock(request, block).flatMap {
-      case Some(token) => block(UserRequest(token.resourceOwnerId, request))
-      case None        => Results.Unauthorized.pure
+      case Some(user) => block(UserRequest(user, request))
+      case None       => Results.Unauthorized.pure
     }
 }
 
@@ -58,8 +60,8 @@ private class OptionalAuthActionFunction(
       request: Request[A],
       block: OptionalUserRequest[A] => Future[Result]
   ): Future[Result] =
-    partialInvokeBlock(request, block).flatMap { tokenOpt =>
-      block(OptionalUserRequest(tokenOpt.map(_.resourceOwnerId), request))
+    partialInvokeBlock(request, block).flatMap { userOpt =>
+      block(OptionalUserRequest(userOpt, request))
     }
 }
 
