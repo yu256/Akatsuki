@@ -1,4 +1,4 @@
-@(userForm: Form[controllers.api.v1.AccountsController.RegisterRequest])(implicit request: play.api.mvc.RequestHeader, messagesProvier: MessagesProvider)
+@(registerForm: Form[controllers.api.v1.AccountsController.RegisterRequest])(implicit request: play.api.mvc.RequestHeader, messagesProvier: MessagesProvider)
 
 @import helper.*
 @import language.deprecated.symbolLiterals
@@ -11,12 +11,12 @@
 <body>
 <div class="p-10">
     @helper.form(action = api.v1.routes.AccountsController.register) {
-    @helper.inputText(userForm("username"), '_label -> "Username", '_help -> "This is your id.")
-    @helper.inputText(userForm("email"), '_label -> "Email")
-    @helper.inputPassword(userForm("password"), '_label -> "Password")
-    @helper.checkbox(userForm("agreement"), '_label -> "I agree to the terms and conditions.")
-    @helper.select(userForm("locale"), options = Seq("ja" -> "Japanese", "en" -> "English"), '_label -> "Locale")
-    @helper.textarea(userForm("reason"), '_label -> "Reason")
+    @helper.inputText(registerForm("username"), '_label -> "Username", '_help -> "This is your id.")
+    @helper.inputText(registerForm("email"), '_label -> "Email")
+    @helper.inputPassword(registerForm("password"), '_label -> "Password")
+    @helper.checkbox(registerForm("agreement"), '_label -> "I agree to the terms and conditions.")
+    @helper.select(registerForm("locale"), options = Seq("ja" -> "Japanese", "en" -> "English"), '_label -> "Locale")
+    @helper.textarea(registerForm("reason"), '_label -> "Reason")
 
     <button type="submit">Submit</button>
     }

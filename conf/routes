@@ -6,13 +6,13 @@ GET /.well-known/nodeinfo controllers.NodeInfoController.wellKnown
 GET /nodeinfo/2.0 controllers.NodeInfoController.nodeInfo
 
 POST /oauth/token controllers.oauth.OAuth2Controller.token
-GET /oauth/authorize controllers.oauth.OAuth2Controller.authorize(response_type, client_id, redirect_uri, scope: Option[String], force_login: Option[Boolean], lang: Option[String])
+GET /oauth/authorize controllers.oauth.OAuth2Controller.authorize(response_type, client_id: Long, redirect_uri, scope: Option[String], force_login: Option[Boolean], lang: Option[String])
 
 POST /api/v1/apps controllers.api.v1.AppsController.apps
 GET /api/v1/instance controllers.api.v1.InstanceController.instance
 POST /api/v1/accounts controllers.api.v1.AccountsController.register
 GET /api/v1/accounts/verify_credentials controllers.api.v1.AccountsController.verify
-GET /api/v1/accounts/$id<[0-9]+> controllers.api.v1.AccountsController.getAccount(id)
+GET /api/v1/accounts/$id<[0-9]+> controllers.api.v1.AccountsController.getAccount(id: Long)
 GET /api/v1/accounts/:targetId/statuses controllers.api.v1.AccountsController.getUserTimeline(targetId: Long, only_media: Boolean = false, max_id: Option[Long], since_id: Option[Long], min_id: Option[Long], limit: Int = 20)
 GET /api/v1/accounts/relationships controllers.api.v1.AccountsController.getRelationships(with_suspended: Boolean = false)
 GET /api/v1/filters controllers.api.v1.FiltersController.get

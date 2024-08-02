@@ -1,6 +1,5 @@
 package controllers.oauth
 
-import cats.data.EitherT
 import cats.syntax.all.*
 import controllers.routes
 import play.api.db.slick.DatabaseConfigProvider
@@ -10,9 +9,10 @@ import play.api.mvc.*
 import repositories.AuthRepository
 import scalaoauth2.provider.*
 import security.{CustomController, OAuthHandler}
+import slick.dbio.DBIO
 
 import javax.inject.Inject
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 class OAuth2Controller @Inject() (
     cc: ControllerComponents,
@@ -24,6 +24,8 @@ class OAuth2Controller @Inject() (
 ) extends CustomController(cc, dbConfigProvider)
     with OAuth2Provider
     with I18nSupport {
+  import extensions.FunctionalDBIO.given
+
   override val tokenEndpoint: TokenEndpoint = new TokenEndpoint {
     override val handlers: Map[String, GrantHandler] = Map(
       OAuthGrantType.AUTHORIZATION_CODE -> AuthorizationCode(),
@@ -35,44 +37,32 @@ class OAuth2Controller @Inject() (
   }
 
   def authorize(
-      response_type: String,
-      client_id: String,
-      redirect_uri: String,
+      responseType: String,
+      clientId: Long,
+      redirectUri: String,
       scope: Option[String],
-      force_login: Option[Boolean],
+      forceLogin: Option[Boolean],
       lang: Option[String]
-  ): Action[AnyContent] = Action.async { request =>
-    (for {
-      clientId <- EitherT.fromOption[Future](
-        client_id.toLongOption,
-        "Invalid client_id"
-      )
-      app <- EitherT.fromOptionF(
-        run(authRepo.findAppByApplicationId(clientId)),
-        "Invalid client_id"
-      )
-      result <- EitherT.liftF {
+  ): Action[AnyContent] = ActionDB() { request =>
+    authRepo.findAppByApplicationId(clientId).flatMap {
+      _.fold(BadRequest(Json.obj("error" -> "Invalid client_id")).pure) { app =>
         if app.ownerId.isDefined then
-          run(authRepo.genAppCode(clientId)).map { code =>
-            redirect_uri match {
-              case "urn:ietf:wg:oauth:2.0:oob" =>
-                Ok(views.html.auth_code(code))
-              case uri => Redirect(s"$uri?code=$code")
-            }
+          authRepo.genAppCode(clientId).map { code =>
+            if redirectUri == "urn:ietf:wg:oauth:2.0:oob" then
+              Ok(views.html.auth_code(code))
+            else Redirect(s"$redirectUri?code=$code")
           }
         else
           Redirect(
             routes.HomeController.index
           ).withSession(
-            "clientId" -> client_id,
+            "clientId" -> clientId.toString,
             "redirectTo" -> request.headers
               .get("Raw-Request-URI")
               .getOrElse(throw UnknownError("Failed to get Raw-Request-URI"))
-          ).pure[Future]
+          ).pure[DBIO]
       }
-    } yield {
-      result
-    }).valueOr(e => BadRequest(Json.obj("error" -> e)))
+    }
   }
 
   val token: Action[AnyContent] = Action.async { implicit request =>

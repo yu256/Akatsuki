@@ -1,5 +1,5 @@
 package controllers
-import controllers.api.v1.AccountsController.userForm
+import controllers.api.v1.AccountsController.registerForm
 import play.api.i18n.I18nSupport
 import play.api.mvc.*
 import repositories.{AccountRepository, AuthRepository, UserRepository}
@@ -19,6 +19,6 @@ class HomeController @Inject() (
     with I18nSupport {
   val index: Action[AnyContent] = Action {
     implicit request =>
-      Ok(views.html.index(userForm))
+      Ok(views.html.index(registerForm))
   }
 }

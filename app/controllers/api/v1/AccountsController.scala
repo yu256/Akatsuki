@@ -34,9 +34,8 @@ class AccountsController @Inject() (
   import extensions.FunctionalDBIO.{asEither, given}
 
   val register: Action[AnyContent] =
-    ActionDB(
-    ) { implicit request =>
-      userForm
+    ActionDB() { implicit request =>
+      registerForm
         .bindFromRequest()
         .fold(
           formWithErrors => BadRequest(views.html.index(formWithErrors)).pure,
@@ -83,10 +82,10 @@ class AccountsController @Inject() (
                     if ex.getSQLState == "23505" /* Unique constraint violation */ =>
                   val formWithErrors =
                     if ex.getMessage.contains("username)=") then
-                      userForm
+                      registerForm
                         .withError("username", "Username already exists")
                     else
-                      userForm
+                      registerForm
                         .withError("email", "Email already exists")
                   BadRequest(views.html.index(formWithErrors))
                 case ex =>
@@ -144,23 +143,15 @@ class AccountsController @Inject() (
         }
     }
 
-  def getAccount(id: String): Action[AnyContent] = ActionDB() { _ =>
-    (for {
-      accountId <- EitherT.fromEither[DBIO](
-        id.toLongOption.toRight(
-          InvalidRequest("Invalid account ID")
-        )
+  def getAccount(id: Long): Action[AnyContent] = ActionDB() { _ =>
+    accountRepo.findByAccountId(id).asTry.map {
+      _.fold(
+        e => InternalServerError(Json.obj("error" -> e.getMessage)),
+        _.fold(NotFound(Json.obj("error" -> "Account not found"))) { account =>
+          Ok(Json.toJson(Account.fromRow(account)))
+        }
       )
-      account <- EitherT(accountRepo.findByAccountId(accountId).asEither)
-    } yield account.map(Account.fromRow)).fold(
-      {
-        case e: InvalidRequest => BadRequest(Json.obj("error" -> e.description))
-        case e => InternalServerError(Json.obj("error" -> e.getMessage))
-      },
-      _.fold(NotFound(Json.obj("error" -> "Account not found"))) { account =>
-        Ok(Json.toJson(account))
-      }
-    )
+    }
   }
 
   def getUserTimeline(
@@ -224,7 +215,7 @@ object AccountsController {
       reason: Option[String]
   )
 
-  val userForm: Form[RegisterRequest] = Form(
+  val registerForm: Form[RegisterRequest] = Form(
     mapping(
       "username" -> nonEmptyText,
       "email" -> optional(email),

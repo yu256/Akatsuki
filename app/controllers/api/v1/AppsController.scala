@@ -18,8 +18,8 @@ class AppsController @Inject() (
 )(using ExecutionContext)
     extends CustomController(cc, dbConfigProvider) {
   case class AppsRequest(
-      client_name: String,
-      redirect_uris: String,
+      clientName: String,
+      redirectUris: String,
       scopes: Option[String],
       website: Option[String]
   )
@@ -32,7 +32,7 @@ class AppsController @Inject() (
         "scopes" -> optional(text),
         "website" -> optional(text)
       )(AppsRequest.apply)(r =>
-        Some((r.client_name, r.redirect_uris, r.scopes, r.website))
+        Some((r.clientName, r.redirectUris, r.scopes, r.website))
       )
     )
   }) { request =>
