@@ -185,6 +185,33 @@ class AccountsController @Inject() (
         }
         .map { statuses => Ok(Json.toJson(statuses)) }
     }
+
+  // wip
+  def getRelationships(
+      with_suspended: Boolean = false
+  ): Action[AnyContent] = authAction() { request =>
+    val ids = request.queryString
+      .get("id[]")
+      .flatTraverse(_.map(_.toLongOption))
+      .flatten
+
+    Ok(Json.toJson(ids.map { id =>
+      Json.obj(
+        "id" -> id.toString,
+        "following" -> true,
+        "showing_reblogs" -> true,
+        "notifying" -> false,
+        "followed_by" -> true,
+        "blocking" -> false,
+        "blocked_by" -> false,
+        "muting" -> false,
+        "muting_notifications" -> false,
+        "requested" -> false,
+        "domain_blocking" -> false,
+        "endorsed" -> false
+      )
+    }))
+  }
 }
 
 object AccountsController {
