@@ -25,7 +25,7 @@ trait MediaRepository {
 @Singleton
 class MediaRepositoryImpl @Inject() ()(using ExecutionContext)
     extends MediaRepository {
-  import MyPostgresDriver.api.*
+  import MyPostgresDriver.api.given
 
   def create(
       fileName: String,

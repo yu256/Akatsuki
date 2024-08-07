@@ -42,20 +42,20 @@ trait StatusRepository {
 @Singleton
 class StatusRepositoryImpl @Inject() ()(using ExecutionContext)
     extends StatusRepository {
-  import MyPostgresDriver.api.*
+  import MyPostgresDriver.api.{Case, Rep, given}
+  import cats.syntax.all.*
+  import extensions.FunctionalDBIO.given
 
-  given mediaSeqGR(using
-      mediaGR: GetResult[Tables.MediaRow]
-  ): GetResult[Seq[Tables.MediaRow]] =
-    GetResult { r =>
-      Iterator
-        .continually(r.rs)
-        .takeWhile(_.next())
-        .map { _ =>
-          mediaGR(r)
-        }
-        .toSeq
-    }
+  private def fetchMediaAndCreateStatus(
+      statusRow: Tables.StatusesRow,
+      accountRow: Tables.AccountsRow
+  ): DBIO[Status] =
+    Tables.Media
+      .filter(_.id.inSet(statusRow.mediaAttachmentIds))
+      .result
+      .map(
+        Status.fromRow(statusRow, accountRow, _)
+      )
 
   def createStatus(
       accountId: Long,
@@ -84,18 +84,13 @@ class StatusRepositoryImpl @Inject() ()(using ExecutionContext)
       )}, $language, $accountId, $mediaIds
         ) RETURNING *
       )
-      SELECT inserted.*, accounts.*, media_files.media_files
+      SELECT inserted.*, accounts.*
       FROM inserted
-      LEFT JOIN accounts ON inserted.account_id = accounts.id
-      LEFT JOIN LATERAL (
-        SELECT array_agg(row_to_json(media)) as media_files
-        FROM media
-        WHERE media.id = ANY(inserted.media_attachment_ids)
-      ) media_files ON true;
+      LEFT JOIN accounts ON inserted.account_id = accounts.id;
     """
-      .as[(Tables.StatusesRow, Tables.AccountsRow, Seq[Tables.MediaRow])]
+      .as[(Tables.StatusesRow, Tables.AccountsRow)]
       .head
-      .map(Status.fromRow)
+      .flatMap(fetchMediaAndCreateStatus)
   }
 
   def deleteStatus(statusId: Long, userId: Long): DBIO[Option[Status]] =
@@ -106,18 +101,13 @@ class StatusRepositoryImpl @Inject() ()(using ExecutionContext)
                WHERE id = $statusId AND account_id = $userId
                RETURNING *
              )
-             SELECT deleted.*, accounts.*, media_files.media_files
+             SELECT deleted.*, accounts.*
              FROM deleted
-             LEFT JOIN accounts ON deleted.account_id = accounts.id
-             LEFT JOIN LATERAL (
-               SELECT array_agg(row_to_json(media)) as media_files
-               FROM media
-               WHERE media.id = ANY(deleted.media_attachment_ids)
-             ) media_files ON true;
+             LEFT JOIN accounts ON deleted.account_id = accounts.id;
            """
-      .as[(Tables.StatusesRow, Tables.AccountsRow, Seq[Tables.MediaRow])]
+      .as[(Tables.StatusesRow, Tables.AccountsRow)]
       .headOption
-      .map(_.map(Status.fromRow))
+      .flatMap(_.traverse(fetchMediaAndCreateStatus))
 
   def timeline(
       tlType: TimelineType,
@@ -176,18 +166,9 @@ class StatusRepositoryImpl @Inject() ()(using ExecutionContext)
 
     (for {
       status <- paginatedQuery
-        .take(limit)
         .sortBy(_.createdAt.desc)
+        .take(limit)
       account <- Tables.Accounts if account.id === status.accountId
     } yield (status, account)).result
-      .flatMap(seq =>
-        DBIO.sequence(seq.map { (status, account) =>
-          Tables.Media
-            .filter(_.id.inSet(status.mediaAttachmentIds))
-            .result
-            .map {
-              Status.fromRow(status, account, _)
-            }
-        })
-      )
+      .flatMap(seq => DBIO.sequence(seq.map(fetchMediaAndCreateStatus)))
 }

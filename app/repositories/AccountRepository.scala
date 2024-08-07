@@ -27,8 +27,7 @@ trait AccountRepository {
 @Singleton
 class AccountRepositoryImpl @Inject() ()(using ExecutionContext)
     extends AccountRepository {
-
-  import MyPostgresDriver.api.*
+  import MyPostgresDriver.api.given
 
   // returns id
   def create(

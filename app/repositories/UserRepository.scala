@@ -18,7 +18,7 @@ trait UserRepository {
 @Singleton
 class UserRepositoryImpl @Inject() ()(using ExecutionContext)
     extends UserRepository {
-  import MyPostgresDriver.api.*
+  import MyPostgresDriver.api.given
 
   def create(
       email: Option[String] = None,

@@ -50,7 +50,7 @@ trait AuthRepository {
 @Singleton
 class AuthRepositoryImpl @Inject() ()(using ExecutionContext)
     extends AuthRepository {
-  import MyPostgresDriver.api.*
+  import MyPostgresDriver.api.given
 
   private val bcrypt = new BCryptPasswordEncoder
 

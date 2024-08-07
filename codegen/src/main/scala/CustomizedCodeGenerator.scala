@@ -18,7 +18,7 @@ object CustomizedCodeGenerator {
     .dropRight(1)
     .mkString("""/""")
 
-  def main(args: Array[String]): Unit = {
+  @main def main: Unit =
     Await.result(
       codegen.map(
         _.writeToFile(
@@ -31,7 +31,6 @@ object CustomizedCodeGenerator {
       ),
       20.seconds
     )
-  }
 
   private val db: slickProfile.backend.JdbcDatabaseDef =
     slickProfile.api.Database.forURL(url, driver = jdbcDriver)
@@ -84,16 +83,12 @@ object CustomizedCodeGenerator {
             parentType: Option[String]
         ): String = {
           s"""
-// AUTO-GENERATED Slick data model
-/** Stand-alone Slick data model for immediate use */
 package repositories
 
 object ${container} extends ${container}(${profile})
 
-/** Slick data model trait for extension, choice of backend or usage in the cake pattern. (Make sure to initialize this late.) */
 trait ${container}(val profile: ${profile})${parentType
-              .map(t => s" extends $t")
-              .getOrElse("")} {
+              .fold("")(" extends " ++ _)} {
   import profile.api.*
   ${indent(code)}
 }

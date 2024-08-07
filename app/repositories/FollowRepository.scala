@@ -25,7 +25,8 @@ trait FollowRepository {
 @Singleton
 class FollowRepositoryImpl @Inject() ()(using ExecutionContext)
     extends FollowRepository {
-  import MyPostgresDriver.api.*
+  import MyPostgresDriver.api.given
+
   def follow(
       accountId: Long,
       targetAccountId: Long,

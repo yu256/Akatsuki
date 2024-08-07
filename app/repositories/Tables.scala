@@ -1,10 +1,7 @@
-// AUTO-GENERATED Slick data model
-/** Stand-alone Slick data model for immediate use */
 package repositories
 
 object Tables extends Tables(MyPostgresDriver)
 
-/** Slick data model trait for extension, choice of backend or usage in the cake pattern. (Make sure to initialize this late.) */
 trait Tables(val profile: MyPostgresDriver) {
   import profile.api.*
   import slick.model.ForeignKeyAction
@@ -117,14 +114,18 @@ trait Tables(val profile: MyPostgresDriver) {
     /** Database column updated_at SqlType(timestamptz) */
     val updatedAt: Rep[java.time.ZonedDateTime] = column[java.time.ZonedDateTime]("updated_at")
 
+    /** Uniqueness Index over (username,domain) (database name accounts_username_domain_key) */
+    val index1 = index("accounts_username_domain_key", (username, domain), unique=true)
     /** Index over (createdAt) (database name idx_accounts_created_at) */
-    val index1 = index("idx_accounts_created_at", createdAt)
+    val index2 = index("idx_accounts_created_at", createdAt)
     /** Index over (domain) (database name idx_accounts_domain) */
-    val index2 = index("idx_accounts_domain", domain)
+    val index3 = index("idx_accounts_domain", domain)
     /** Index over (updatedAt) (database name idx_accounts_updated_at) */
-    val index3 = index("idx_accounts_updated_at", updatedAt)
+    val index4 = index("idx_accounts_updated_at", updatedAt)
     /** Index over (username) (database name idx_accounts_username) */
-    val index4 = index("idx_accounts_username", username)
+    val index5 = index("idx_accounts_username", username)
+    /** Uniqueness Index over (username) (database name unique_username_null_domain) */
+    val index6 = index("unique_username_null_domain", username, unique=true)
   }
   /** Collection-like TableQuery object for table Accounts */
   lazy val Accounts = new TableQuery(tag => new Accounts(tag))

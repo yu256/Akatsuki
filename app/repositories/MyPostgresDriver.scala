@@ -39,20 +39,12 @@ trait MyPostgresDriver
       with HStoreImplicits
       with SearchImplicits
       with SearchAssistants {
-    implicit val strListTypeMapper: DriverJdbcType[List[String]] =
-      new SimpleArrayJdbcType[String]("text").to(_.toList)
-    implicit val playJsonArrayTypeMapper: DriverJdbcType[List[JsValue]] =
-      new AdvancedArrayJdbcType[JsValue](
-        pgjson,
-        utils.SimpleArrayUtils.fromString[JsValue](Json.parse)(_).orNull,
-        utils.SimpleArrayUtils.mkString[JsValue](_.toString)(_)
-      ).to(_.toList)
-    implicit val getLongList: GetResult[List[Long]] = mkGetResult(
-      _.nextArray[Long]().toList
+    given [A: izumi.reflect.Tag]: GetResult[List[A]] = mkGetResult(
+      _.nextArray[A]().toList
     )
-    implicit def getOptList[A: izumi.reflect.Tag]: GetResult[Option[List[A]]] =
+    given [A: izumi.reflect.Tag]: GetResult[Option[List[A]]] =
       mkGetResult(_.nextArrayOption[A]().map(_.toList))
-    implicit val getInetStringOpt: GetResult[Option[InetString]] = mkGetResult(
+    given GetResult[Option[InetString]] = mkGetResult(
       _.nextStringOption().map(InetString.apply)
     )
   }
