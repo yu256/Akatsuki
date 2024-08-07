@@ -50,6 +50,8 @@ trait MyPostgresDriver
     implicit val getLongList: GetResult[List[Long]] = mkGetResult(
       _.nextArray[Long]().toList
     )
+    implicit def getOptList[A: izumi.reflect.Tag]: GetResult[Option[List[A]]] =
+      mkGetResult(_.nextArrayOption[A]().map(_.toList))
     implicit val getInetStringOpt: GetResult[Option[InetString]] = mkGetResult(
       _.nextStringOption().map(InetString.apply)
     )

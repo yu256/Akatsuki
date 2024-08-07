@@ -11,6 +11,7 @@ GET /oauth/authorize controllers.oauth.OAuth2Controller.authorize(response_type,
 POST /api/v1/apps controllers.api.v1.AppsController.apps
 GET /api/v1/instance controllers.api.v1.InstanceController.instance
 POST /api/v1/accounts controllers.api.v1.AccountsController.register
+POST /api/v1/accounts/$id<[0-9]+>/follow controllers.api.v1.accounts.FollowsController.follow(id: Long)
 GET /api/v1/accounts/verify_credentials controllers.api.v1.AccountsController.verify
 GET /api/v1/accounts/$id<[0-9]+> controllers.api.v1.AccountsController.getAccount(id: Long)
 GET /api/v1/accounts/:targetId/statuses controllers.api.v1.AccountsController.getUserTimeline(targetId: Long, only_media: Boolean = false, max_id: Option[Long], since_id: Option[Long], min_id: Option[Long], limit: Int = 20)

@@ -12,7 +12,7 @@ import play.api.i18n.I18nSupport
 import play.api.libs.json.*
 import play.api.libs.json.Json.JsValueWrapper
 import play.api.mvc.*
-import repositories.{AccountRepository, AuthRepository, StatusRepository, UserRepository}
+import repositories.*
 import scalaoauth2.provider.InvalidRequest
 import security.AuthController
 import slick.dbio.DBIO
@@ -26,12 +26,15 @@ class AccountsController @Inject() (
     dbConfigProvider: DatabaseConfigProvider,
     accountRepo: AccountRepository,
     userRepo: UserRepository,
-    statusRepo: StatusRepository
+    statusRepo: StatusRepository,
+    followRepo: FollowRepository
 )(using ExecutionContext)
     extends AuthController(authRepo, cc, dbConfigProvider)
     with I18nSupport {
   import AccountsController.*
   import extensions.FunctionalDBIO.{asEither, given}
+
+  import scala.util.chaining.scalaUtilChainingOps
 
   val register: Action[AnyContent] =
     ActionDB() { implicit request =>
@@ -177,28 +180,52 @@ class AccountsController @Inject() (
   // wip
   def getRelationships(
       with_suspended: Boolean = false
-  ): Action[AnyContent] = authAction() { request =>
-    val ids = request.queryString
+  ): Action[AnyContent] = authActionDB() { request =>
+    val ids: Seq[Long] = request.queryString
       .get("id[]")
       .flatTraverse(_.map(_.toLongOption))
       .flatten
 
-    Ok(Json.toJson(ids.map { id =>
-      Json.obj(
-        "id" -> id.toString,
-        "following" -> true,
-        "showing_reblogs" -> true,
-        "notifying" -> false,
-        "followed_by" -> true,
-        "blocking" -> false,
-        "blocked_by" -> false,
-        "muting" -> false,
-        "muting_notifications" -> false,
-        "requested" -> false,
-        "domain_blocking" -> false,
-        "endorsed" -> false
-      )
-    }))
+    val infoF: DBIO[
+      Seq[(Long, Option[Tables.FollowsRow], Option[Tables.FollowsRow])]
+    ] =
+      ids.map { id =>
+        for {
+          following <- followRepo.getInfo(request.user.accountId, id)
+          follower <- followRepo.getInfo(id, request.user.accountId)
+        } yield (id, following, follower)
+      } pipe DBIO.sequence
+
+    infoF.map { info =>
+      Ok(Json.toJson {
+        info.map { (id, following, follower) =>
+          Json.obj(
+            "id" -> id.toString,
+            "followed_by" -> follower.isDefined,
+            "blocking" -> false,
+            "blocked_by" -> false,
+            "muting" -> false,
+            "muting_notifications" -> false,
+            "requested" -> false,
+            "domain_blocking" -> false,
+            "endorsed" -> false
+          ) ++
+            following.fold(
+              Json.obj(
+                "following" -> false,
+                "showing_reblogs" -> false,
+                "notifying" -> false
+              )
+            ) { following =>
+              Json.obj(
+                "following" -> true,
+                "showing_reblogs" -> following.showReblogs,
+                "notifying" -> following.inform
+              )
+            }
+        }
+      })
+    }
   }
 }
 
