@@ -17,25 +17,9 @@ class AppsController @Inject() (
     authRepo: AuthRepository
 )(using ExecutionContext)
     extends CustomController(cc, dbConfigProvider) {
-  case class AppsRequest(
-      clientName: String,
-      redirectUris: String,
-      scopes: Option[String],
-      website: Option[String]
-  )
+  import AppsController.*
 
-  val apps: Action[AppsRequest] = ActionDB(parse.form {
-    Form(
-      mapping(
-        "client_name" -> nonEmptyText,
-        "redirect_uris" -> nonEmptyText,
-        "scopes" -> optional(text),
-        "website" -> optional(text)
-      )(AppsRequest.apply)(r =>
-        Some((r.clientName, r.redirectUris, r.scopes, r.website))
-      )
-    )
-  }) { request =>
+  val apps: Action[AppsRequest] = ActionDB(parse.form(appsForm)) { request =>
     val AppsRequest(clientName, redirectUris, scopes, website) = request.body
 
     authRepo
@@ -59,4 +43,24 @@ class AppsController @Inject() (
       )
 
   }
+}
+
+object AppsController {
+  case class AppsRequest(
+      clientName: String,
+      redirectUris: String,
+      scopes: Option[String],
+      website: Option[String]
+  )
+
+  private val appsForm = Form(
+    mapping(
+      "client_name" -> nonEmptyText,
+      "redirect_uris" -> nonEmptyText,
+      "scopes" -> optional(text),
+      "website" -> optional(text)
+    )(AppsRequest.apply)(r =>
+      Some((r.clientName, r.redirectUris, r.scopes, r.website))
+    )
+  )
 }

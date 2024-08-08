@@ -19,65 +19,9 @@ class StatusesController @Inject() (
 )(using
     ExecutionContext
 ) extends AuthController(authRepo, cc, dbConfigProvider) {
-  case class StatusRequest(
-      status: String,
-      mediaIds: Option[Seq[String]],
-      poll: Option[PollRequest],
-      inReplyToId: Option[String],
-      sensitive: Boolean, // default false
-      spoilerText: Option[String],
-      visibility: Option[String],
-      language: Option[String],
-      scheduledAt: Option[String]
-  )
-
-  case class PollRequest(
-      options: Seq[String],
-      expiresIn: Int,
-      multiple: Boolean, // default false
-      hideTotals: Boolean // default false
-  )
-
+  import StatusesController.*
   val post: Action[StatusRequest] =
-    authActionDB(parse.form {
-      Form(
-        mapping(
-          "status" -> text,
-          "media_ids" -> optional(seq(text)),
-          "poll" -> optional(
-            mapping(
-              "options" -> seq(text),
-              "expires_in" -> number,
-              "multiple" -> optional(boolean)
-                .transform[Boolean](_.getOrElse(false), Some.apply),
-              "hide_totals" -> optional(boolean)
-                .transform[Boolean](_.getOrElse(false), Some.apply)
-            )(PollRequest.apply)(r =>
-              Some(r.options, r.expiresIn, r.multiple, r.hideTotals)
-            )
-          ),
-          "in_reply_to_id" -> optional(text),
-          "sensitive" -> optional(boolean)
-            .transform[Boolean](_.getOrElse(false), Some.apply),
-          "spoiler_text" -> optional(text),
-          "visibility" -> optional(text),
-          "language" -> optional(text),
-          "scheduled_at" -> optional(text)
-        )(StatusRequest.apply)(r =>
-          Some(
-            r.status,
-            r.mediaIds,
-            r.poll,
-            r.inReplyToId,
-            r.sensitive,
-            r.spoilerText,
-            r.visibility,
-            r.language,
-            r.scheduledAt
-          )
-        )
-      )
-    }) { request =>
+    authActionDB(parse.form(statusRequestForm)) { request =>
       val req = request.request.body
 
       statusRepo
@@ -101,4 +45,63 @@ class StatusesController @Inject() (
           Utils.toJsonResponse
         )
     }
+}
+
+object StatusesController {
+  case class StatusRequest(
+      status: String,
+      mediaIds: Option[Seq[String]],
+      poll: Option[PollRequest],
+      inReplyToId: Option[String],
+      sensitive: Boolean, // default false
+      spoilerText: Option[String],
+      visibility: Option[String],
+      language: Option[String],
+      scheduledAt: Option[String]
+  )
+
+  case class PollRequest(
+      options: Seq[String],
+      expiresIn: Int,
+      multiple: Boolean, // default false
+      hideTotals: Boolean // default false
+  )
+
+  private val statusRequestForm = Form(
+    mapping(
+      "status" -> text,
+      "media_ids" -> optional(seq(text)),
+      "poll" -> optional(
+        mapping(
+          "options" -> seq(text),
+          "expires_in" -> number,
+          "multiple" -> optional(boolean)
+            .transform[Boolean](_.getOrElse(false), Some.apply),
+          "hide_totals" -> optional(boolean)
+            .transform[Boolean](_.getOrElse(false), Some.apply)
+        )(PollRequest.apply)(r =>
+          Some(r.options, r.expiresIn, r.multiple, r.hideTotals)
+        )
+      ),
+      "in_reply_to_id" -> optional(text),
+      "sensitive" -> optional(boolean)
+        .transform[Boolean](_.getOrElse(false), Some.apply),
+      "spoiler_text" -> optional(text),
+      "visibility" -> optional(text),
+      "language" -> optional(text),
+      "scheduled_at" -> optional(text)
+    )(StatusRequest.apply)(r =>
+      Some(
+        r.status,
+        r.mediaIds,
+        r.poll,
+        r.inReplyToId,
+        r.sensitive,
+        r.spoilerText,
+        r.visibility,
+        r.language,
+        r.scheduledAt
+      )
+    )
+  )
 }
