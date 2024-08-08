@@ -33,27 +33,23 @@ class FollowsController @Inject() (
           followed <- followRepo.getInfo(targetAccountId, user.accountId)
         } yield (follow, followed.isDefined)
 
-        dbAction.asTry
-          .map {
-            _.fold(
-              throw _, // todo: error handling
-              (follow, isFollowed) =>
-                Ok(
-                  Json.obj(
-                    "id" -> targetAccountId.toString,
-                    "following" -> true,
-                    "showing_reblogs" -> follow.showReblogs,
-                    "notifying" -> follow.inform,
-                    "followed_by" -> isFollowed,
-                    "blocking" -> false,
-                    "blocked_by" -> false,
-                    "muting" -> false,
-                    "muting_notifications" -> false,
-                    "requested" -> false,
-                    "domain_blocking" -> false,
-                    "endorsed" -> false
-                  )
-                )
+        dbAction
+          .map { (follow, isFollowed) =>
+            Ok(
+              Json.obj(
+                "id" -> targetAccountId.toString,
+                "following" -> true,
+                "showing_reblogs" -> follow.showReblogs,
+                "notifying" -> follow.inform,
+                "followed_by" -> isFollowed,
+                "blocking" -> false,
+                "blocked_by" -> false,
+                "muting" -> false,
+                "muting_notifications" -> false,
+                "requested" -> false,
+                "domain_blocking" -> false,
+                "endorsed" -> false
+              )
             )
           }
     }

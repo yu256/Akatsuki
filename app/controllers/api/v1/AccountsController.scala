@@ -91,8 +91,7 @@ class AccountsController @Inject() (
                       registerForm
                         .withError("email", "Email already exists")
                   BadRequest(views.html.index(formWithErrors))
-                case ex =>
-                  InternalServerError(Json.obj("error" -> ex.getMessage))
+                case ex => throw ex
               },
               accessToken =>
                 request.session
@@ -139,7 +138,7 @@ class AccountsController @Inject() (
       accountRepo
         .findByAccountId(id)
     )
-      .fold(InternalServerError(Json.obj("error" -> "Account not found")))(
+      .fold(BadRequest(Json.obj("error" -> "Account not found")))(
         Account.fromRow andThen Utils.toJsonResponse
       )
 

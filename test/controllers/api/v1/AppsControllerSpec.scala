@@ -71,7 +71,7 @@ class AppsControllerSpec
         "website" -> "http://example.com"
       )
 
-      val result = Helpers.call(appsController.apps, request)
+      val result = TestUtils.callWithFilter(appsController.apps, request)
 
       status(result) mustBe OK
       contentAsJson(result) mustBe Json.obj(
@@ -116,11 +116,11 @@ class AppsControllerSpec
         "website" -> "http://example.com"
       )
 
-      val result = Helpers.call(appsController.apps, request)
+      val result = TestUtils.callWithFilter(appsController.apps, request)
 
       status(result) mustBe INTERNAL_SERVER_ERROR
       contentAsJson(result) mustBe Json.obj(
-        "error" -> "An error occurred while creating the app"
+        "error" -> "Internal server error occurred"
       )
     }
   }

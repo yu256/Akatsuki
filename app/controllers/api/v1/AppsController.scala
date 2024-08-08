@@ -45,25 +45,18 @@ class AppsController @Inject() (
         scopes,
         website
       )
-      .asTry
-      .map(
-        _.fold(
-          _ =>
-            InternalServerError(
-              Json.obj("error" -> "An error occurred while creating the app")
-            ),
-          app =>
-            Ok(
-              Json.obj(
-                "id" -> app.id.toString,
-                "name" -> app.name,
-                "website" -> app.website,
-                "redirect_uri" -> app.redirectUri,
-                "client_id" -> app.id.toString,
-                "client_secret" -> app.secret
-              )
-            )
+      .map(app =>
+        Ok(
+          Json.obj(
+            "id" -> app.id.toString,
+            "name" -> app.name,
+            "website" -> app.website,
+            "redirect_uri" -> app.redirectUri,
+            "client_id" -> app.id.toString,
+            "client_secret" -> app.secret
+          )
         )
       )
+
   }
 }

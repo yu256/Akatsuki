@@ -9,5 +9,6 @@ import javax.inject.Inject
 class Filters @Inject() (
     gzip: GzipFilter,
     log: LoggingFilter,
+    errorHandling: ErrorHandlingFilter,
     corsFilter: CORSFilter
-) extends DefaultHttpFilters(gzip, log, corsFilter)
+) extends DefaultHttpFilters(gzip, log, errorHandling, corsFilter)
