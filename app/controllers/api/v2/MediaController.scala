@@ -25,15 +25,18 @@ class MediaController @Inject() (
     mediaRepo: MediaRepository
 )(using ExecutionContext)
     extends AuthController(authRepo, cc, dbConfigProvider) {
-  def serveFile(fileName: String): Action[AnyContent] = Action { request =>
-    val file = new File(env.getFile("media"), fileName)
-    if file.exists && file.isFile then
-      Ok.sendFile(
-        content = file,
-        inline = true,
-        fileName = _ => URLDecoder.decode(fileName, "UTF-8").some
-      )
-    else NotFound("File not found")
+  def serveFile(fileName: String): Action[AnyContent] = Action.async {
+    request =>
+      val file = new File(env.getFile("media"), fileName)
+      Future {
+        if file.exists && file.isFile then
+          Ok.sendFile(
+            content = file,
+            inline = true,
+            fileName = _ => Some(URLDecoder.decode(fileName, "UTF-8"))
+          )
+        else NotFound("File not found")
+      }
   }
 
   val post: Action[MultipartFormData[TemporaryFile]] =
