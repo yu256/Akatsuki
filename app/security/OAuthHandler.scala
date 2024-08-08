@@ -19,7 +19,7 @@ class OAuthHandler @Inject() (
     extends DataHandler[Tables.UsersRow] {
   import extensions.FunctionalDBIO.given
 
-  import scala.util.chaining.scalaUtilChainingOps
+  import extensions.ChainingOps.|>
 
   private val dbConfig = dbConfigProvider.get[PostgresProfile]
   private def run[T] = dbConfig.db.run[T]
@@ -52,7 +52,7 @@ class OAuthHandler @Inject() (
     authInfo.clientId.flatMap(_.toLongOption).flatTraverse { id =>
       authRepo
         .findToken(id, authInfo.scope, authInfo.user.id)
-        .map(_.map(toAccessToken)) pipe run
+        .map(_.map(toAccessToken)) |> run
     }
 
   override def createAccessToken(
@@ -71,7 +71,7 @@ class OAuthHandler @Inject() (
     } yield {
       toAccessToken(tokenRow)
     }
-  ).getOrElse(throw InvalidClient()) pipe run
+  ).getOrElse(throw InvalidClient()) |> run
 
   override def findUser(
       maybeCredential: Option[ClientCredential],
@@ -85,7 +85,7 @@ class OAuthHandler @Inject() (
       app <- OptionT(authRepo.findAppByApplicationId(clientId))
       if app.secret == clientSecret
       user <- OptionT(app.ownerId flatTraverse userRepo.findById)
-    } yield user).value pipe run
+    } yield user).value |> run
 
   override def findAuthInfoByRefreshToken(
       refreshToken: String
@@ -110,7 +110,7 @@ class OAuthHandler @Inject() (
             app.redirectUri.some
           )
         }
-      ) pipe run
+      ) |> run
 
   override def deleteAuthCode(code: String): Future[Unit] =
     // do nothing
@@ -119,7 +119,7 @@ class OAuthHandler @Inject() (
   override def findAccessToken(token: String): Future[Option[AccessToken]] =
     authRepo
       .findToken(token)
-      .map(_.map(toAccessToken)) pipe run
+      .map(_.map(toAccessToken)) |> run
 
   override def findAuthInfoByAccessToken(
       accessToken: AccessToken
@@ -137,6 +137,6 @@ class OAuthHandler @Inject() (
         app.scopes.some,
         app.redirectUri.some
       )
-    }).value pipe run
+    }).value |> run
 
 }

@@ -33,8 +33,7 @@ class AccountsController @Inject() (
     with I18nSupport {
   import AccountsController.*
   import extensions.FunctionalDBIO.{asEither, given}
-
-  import scala.util.chaining.scalaUtilChainingOps
+  import extensions.ChainingOps.|>
 
   val register: Action[AnyContent] =
     ActionDB() { implicit request =>
@@ -143,7 +142,7 @@ class AccountsController @Inject() (
       )
 
   val verify: Action[AnyContent] =
-    authAction().async(_.user.accountId pipe getAccountFromDB)
+    authAction().async(_.user.accountId |> getAccountFromDB)
 
   def getAccount(id: Long): Action[AnyContent] =
     Action.async(getAccountFromDB(id))
@@ -185,7 +184,7 @@ class AccountsController @Inject() (
           following <- followRepo.getInfo(request.user.accountId, id)
           follower <- followRepo.getInfo(id, request.user.accountId)
         } yield (id, following, follower)
-      } pipe DBIO.sequence
+      } |> DBIO.sequence
 
     infoF.map { info =>
       Ok(Json.toJson {
