@@ -15,6 +15,10 @@ import java.nio.file.{Files, Paths}
 import javax.imageio.ImageIO
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
+import org.im4java.core.{IMOperation, ImageMagickCmd}
+import org.im4java.process.StandardStream
+
+import java.util.concurrent.Executors
 
 class MediaController @Inject() (
     authRepo: AuthRepository,
@@ -22,9 +26,10 @@ class MediaController @Inject() (
     dbConfigProvider: DatabaseConfigProvider,
     env: Environment,
     config: Configuration,
-    mediaRepo: MediaRepository
-)(using ExecutionContext)
-    extends AuthController(authRepo, cc, dbConfigProvider) {
+    mediaRepo: MediaRepository,
+    ec: ExecutionContext
+) extends AuthController(authRepo, cc, dbConfigProvider)(ec) {
+  import MediaController.executionContext
   def serveFile(fileName: String): Action[AnyContent] = Action.async {
     request =>
       val file = new File(env.getFile("media"), fileName)
@@ -51,19 +56,22 @@ class MediaController @Inject() (
 
             val fileSize = fileData.fileSize
 
-            val moveAndRead = Future {
-              Files.createDirectories(Paths.get(dirPath))
-              val file =
-                new File(s"$dirPath/$filename")
-              fileData.ref.moveTo(file, replace = true)
-              ImageIO.read(file)
-            }
+            val file = File(s"$dirPath/$filename")
+            val thumbnailFile = File(s"$dirPath/thumbnail_$filename")
 
             val baseUrl = s"${config.get[String]("app.url")}/media"
 
             for {
-              blurhash <- moveAndRead >>= (BlurHashEncoder
-                .encodeBlurHash(4, 3, _))
+              blurhash <- Future {
+                Files.createDirectories(Paths.get(dirPath))
+                fileData.ref.moveTo(file, replace = true)
+                compressImage(file.getPath, thumbnailFile.getPath)
+                BlurHashEncoder.encodeBlurHash(
+                  8,
+                  8,
+                  ImageIO.read(thumbnailFile)
+                )
+              }
               media <- run(
                 mediaRepo.create(
                   fileName = filename,
@@ -74,7 +82,8 @@ class MediaController @Inject() (
                   thumbnailFileName = filename,
                   thumbnailContentType = fileData.contentType,
                   thumbnailFileSize = fileSize,
-                  url = s"$baseUrl/$filename".some
+                  url = s"$baseUrl/$filename".some,
+                  thumbnailUrl = s"$baseUrl/thumbnail_$filename".some
                 )
               )
             } yield {
@@ -82,6 +91,20 @@ class MediaController @Inject() (
             }
           }
     }
+
+  private def compressImage(input: String, output: String): Unit = {
+    val cmd = ImageMagickCmd("magick")
+
+    cmd.setErrorConsumer(StandardStream.STDERR)
+
+    val op = IMOperation()
+    op.addImage(input)
+    op.thumbnail(200, 200)
+    op.quality(75.0)
+    op.addImage(output)
+
+    cmd.run(op)
+  }
 
   private object BlurHashEncoder {
     import java.awt.Color
@@ -92,7 +115,7 @@ class MediaController @Inject() (
         xComp: Int,
         yComp: Int,
         image: BufferedImage
-    ): Future[String] = Future {
+    ): String = {
       val width = image.getWidth
       val height = image.getHeight
       val dc :: ac =
@@ -177,7 +200,8 @@ class MediaController @Inject() (
       if (v <= 0.04045f) v / 12.92f
       else math.pow((v + 0.055f) / 1.055f, 2.4f).toFloat
     }
-    private val encodeCharacters =
+
+    private inline val encodeCharacters =
       "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz#$%*+,-.:;=?@[]^_{|}~"
 
     extension (value: Int) {
@@ -189,4 +213,13 @@ class MediaController @Inject() (
         }
     }
   }
+}
+
+object MediaController {
+  implicit val executionContext: ExecutionContext =
+    ExecutionContext.fromExecutor(
+      Executors.newFixedThreadPool(
+        Runtime.getRuntime.availableProcessors() / 2
+      )
+    )
 }

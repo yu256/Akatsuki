@@ -88,7 +88,7 @@ class AuthController(
     authRepo: repositories.AuthRepository,
     cc: ControllerComponents,
     dbConfigProvider: DatabaseConfigProvider
-)(using ec: ExecutionContext)
+)(implicit ec: ExecutionContext)
     extends CustomController(cc, dbConfigProvider) {
   private val runner: DBIO ~> Future = [A] => (fa: DBIO[A]) => run(fa)
   private val actionFunction =

@@ -28,6 +28,8 @@ libraryDependencies ++= Seq(
 
 libraryDependencies += "org.springframework.security" % "spring-security-web" % "6.3.0"
 
+libraryDependencies += "org.im4java" % "im4java" % "1.4.0"
+
 // Adds additional packages into Twirl
 //TwirlKeys.templateImports += "com.github.yu256.controllers._"
 
