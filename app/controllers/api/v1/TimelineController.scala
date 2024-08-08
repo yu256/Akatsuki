@@ -30,9 +30,7 @@ class TimelineController @Inject() (
           sinceId orElse minId,
           maxId
         )
-        .map { statuses =>
-          Ok(Json.toJson(statuses))
-        }
+        .map(Utils.toJsonResponse)
     }
 
   def public(
@@ -52,8 +50,6 @@ class TimelineController @Inject() (
           sinceId orElse minId,
           maxId
         )
-        .map { statuses =>
-          Ok(Json.toJson(statuses))
-        }
+        .map(Utils.toJsonResponse)
     }
 }

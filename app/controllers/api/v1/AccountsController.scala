@@ -134,52 +134,44 @@ class AccountsController @Inject() (
     ) leftMap (InvalidRequest(_))
   }
 
-  val verify: Action[AnyContent] =
-    authAction().async { request =>
-      runM(
-        accountRepo
-          .findByAccountId(request.user.accountId)
+  private def getAccountFromDB(id: Long) =
+    runM(
+      accountRepo
+        .findByAccountId(id)
+    )
+      .fold(InternalServerError(Json.obj("error" -> "Account not found")))(
+        Account.fromRow andThen Utils.toJsonResponse
       )
-        .map(Account.fromRow)
-        .fold(InternalServerError(Json.obj("error" -> "Account not found"))) {
-          account => Ok(Json.toJson(account))
-        }
-    }
 
-  def getAccount(id: Long): Action[AnyContent] = ActionDB() { _ =>
-    accountRepo.findByAccountId(id).asTry.map {
-      _.fold(
-        e => InternalServerError(Json.obj("error" -> e.getMessage)),
-        _.fold(NotFound(Json.obj("error" -> "Account not found"))) { account =>
-          Ok(Json.toJson(Account.fromRow(account)))
-        }
-      )
-    }
-  }
+  val verify: Action[AnyContent] =
+    authAction().async(_.user.accountId pipe getAccountFromDB)
+
+  def getAccount(id: Long): Action[AnyContent] =
+    Action.async(getAccountFromDB(id))
 
   def getUserTimeline(
-      target_id: Long,
-      only_media: Boolean = false,
-      max_id: Option[Long],
-      since_id: Option[Long],
-      min_id: Option[Long],
+      targetId: Long,
+      onlyMedia: Boolean = false,
+      maxId: Option[Long],
+      sinceId: Option[Long],
+      minId: Option[Long],
       limit: Int = 20
   ): Action[AnyContent] =
     optionalAuthActionDB() { request =>
       statusRepo
         .timeline(
           statusRepo.TimelineType
-            .User(target_id, request.user.map(_.accountId)),
+            .User(targetId, request.user.map(_.accountId)),
           limit,
-          since_id orElse min_id,
-          max_id
+          sinceId orElse minId,
+          maxId
         )
-        .map { statuses => Ok(Json.toJson(statuses)) }
+        .map(Utils.toJsonResponse)
     }
 
   // wip
   def getRelationships(
-      with_suspended: Boolean = false
+      withSuspended: Boolean = false
   ): Action[AnyContent] = authActionDB() { request =>
     val ids: Seq[Long] = request.queryString
       .get("id[]")

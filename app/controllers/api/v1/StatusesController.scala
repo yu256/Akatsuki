@@ -91,14 +91,14 @@ class StatusesController @Inject() (
           mediaIds =
             req.mediaIds.map(_.flatMap(_.toLongOption)).getOrElse(Seq.empty)
         )
-        .map(status => Ok(Json.toJson(status)))
+        .map(Utils.toJsonResponse)
     }
 
   def delete(id: Long): Action[AnyContent] =
     authAction().async { request =>
       runM(statusRepo.deleteStatus(id, request.user.accountId))
-        .fold(NotFound(Json.obj("error" -> "Record not found"))) { status =>
-          Ok(Json.toJson(status))
-        }
+        .fold(NotFound(Json.obj("error" -> "Record not found")))(
+          Utils.toJsonResponse
+        )
     }
 }

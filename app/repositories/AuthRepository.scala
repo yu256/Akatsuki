@@ -141,7 +141,7 @@ class AuthRepositoryImpl @Inject() ()(using ExecutionContext)
 
     scopes
       .fold(baseQuery) { s =>
-        baseQuery.filter(t => t.scopes.map(_ === s))
+        baseQuery.filter(_.scopes.map(_ === s))
       }
       .result
       .headOption
