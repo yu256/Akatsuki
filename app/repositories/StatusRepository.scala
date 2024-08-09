@@ -45,6 +45,7 @@ class StatusRepositoryImpl @Inject() ()(using ExecutionContext)
   import MyPostgresDriver.api.{Case, Rep, given}
   import cats.syntax.all.*
   import extensions.FunctionalDBIO.given
+  import extensions.ChainingOps.|>
 
   private def fetchMediaAndCreateStatus(
       statusRow: Tables.StatusesRow,
@@ -170,5 +171,5 @@ class StatusRepositoryImpl @Inject() ()(using ExecutionContext)
         .take(limit)
       account <- Tables.Accounts if account.id === status.accountId
     } yield (status, account)).result
-      .flatMap(seq => DBIO.sequence(seq.map(fetchMediaAndCreateStatus)))
+      .flatMap(_.map(fetchMediaAndCreateStatus) |> DBIO.sequence)
 }

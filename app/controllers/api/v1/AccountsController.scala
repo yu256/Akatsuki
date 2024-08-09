@@ -186,36 +186,32 @@ class AccountsController @Inject() (
         } yield (id, following, follower)
       } |> DBIO.sequence
 
-    infoF.map { info =>
-      Ok(Json.toJson {
-        info.map { (id, following, follower) =>
+    infoF.map(_.map { (id, following, follower) =>
+      Json.obj(
+        "id" -> id.toString,
+        "followed_by" -> follower.isDefined,
+        "blocking" -> false,
+        "blocked_by" -> false,
+        "muting" -> false,
+        "muting_notifications" -> false,
+        "requested" -> false,
+        "domain_blocking" -> false,
+        "endorsed" -> false
+      ) ++
+        following.fold(
           Json.obj(
-            "id" -> id.toString,
-            "followed_by" -> follower.isDefined,
-            "blocking" -> false,
-            "blocked_by" -> false,
-            "muting" -> false,
-            "muting_notifications" -> false,
-            "requested" -> false,
-            "domain_blocking" -> false,
-            "endorsed" -> false
-          ) ++
-            following.fold(
-              Json.obj(
-                "following" -> false,
-                "showing_reblogs" -> false,
-                "notifying" -> false
-              )
-            ) { following =>
-              Json.obj(
-                "following" -> true,
-                "showing_reblogs" -> following.showReblogs,
-                "notifying" -> following.inform
-              )
-            }
+            "following" -> false,
+            "showing_reblogs" -> false,
+            "notifying" -> false
+          )
+        ) { following =>
+          Json.obj(
+            "following" -> true,
+            "showing_reblogs" -> following.showReblogs,
+            "notifying" -> following.inform
+          )
         }
-      })
-    }
+    } |> Utils.toJsonResponse)
   }
 }
 
